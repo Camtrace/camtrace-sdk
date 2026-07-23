@@ -1,0 +1,19 @@
+#%RAML 1.0 DataType
+
+properties:
+  click:
+    type: boolean
+    description: "True si le clique dans l'image est supporté par la caméra"
+  areazoom:
+    type: boolean
+    description: "True si le détourage est supporté par la caméra"
+  zoomback:
+    type: boolean
+    description: "True si le retour au zoom initial est supporté par la caméra"
+  continuous:
+    type: boolean
+    description: "True si les mouvements continues sont supportés par la caméra"
+  presets: !include camera-ptz-preset.raml
+  tours:
+    type: array
+    description: "Liste des tours"

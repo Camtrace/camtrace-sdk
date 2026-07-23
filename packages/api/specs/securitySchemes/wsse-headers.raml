@@ -1,0 +1,16 @@
+description: Authentification WSSE par headers
+type: x-custom
+describedBy:
+  headers:
+    Authorization:
+      type: string
+      example: WSSE profile="UsernameToken"
+    X-WSSE:
+      type: string
+      description: |
+        Header WSSE
+          X-WSSE: UsernameToken
+            Username="<username>",
+            PasswordDigest="base64(sha1(<nonce><created-at><md5-password>))",
+            Nonce="<nonce>",
+            Created="<created-at>"

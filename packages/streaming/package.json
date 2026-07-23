@@ -1,0 +1,13 @@
+{
+  "name": "@camtrace/streaming",
+  "version": "1.0.0",
+  "author": "CamTrace SAS",
+  "main": "src/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@camtrace/api": "file:../api",
+    "@camtrace/decoder": "file:../decoder",
+    "event-emitter-es6": "^1.1.5",
+    "websocket-as-promised": "^2.0.1"
+  }
+}

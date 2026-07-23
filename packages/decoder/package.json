@@ -1,0 +1,29 @@
+{
+  "name": "@camtrace/decoder",
+  "version": "2.0.0",
+  "author": "CamTrace SAS",
+  "main": "build/build.js",
+  "license": "MIT",
+  "dependencies": {
+    "atob": "^2.1.2",
+    "buffer": "^6.0.3",
+    "event-emitter-es6": "^1.1.5",
+    "ucfirst": "^1.0.0",
+    "ws": "^8.6.0",
+    "wsse": "^5.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.18.0",
+    "@babel/preset-env": "^7.18.0",
+    "babel-loader": "^8.2.5",
+    "rimraf": "^3.0.2",
+    "webpack": "^5.72.1",
+    "webpack-cli": "^4.9.2",
+    "webpack-node-externals": "^3.0.0"
+  },
+  "scripts": {
+    "dev": "webpack --mode=development --progress",
+    "build": "webpack --mode=production --progress",
+    "browser": "NODE_TYPE=browser webpack --mode=production --progress"
+  }
+}

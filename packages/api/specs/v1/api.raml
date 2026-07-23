@@ -1,0 +1,73 @@
+#%RAML 1.0
+
+title: API Camtrace
+version: v1
+baseUri: http://camtrace/api/v1
+protocols: [  HTTP, HTTPS ]
+mediaType: [ application/json ]
+types:
+  Server: !include schemas/server/server.raml
+  Camera: !include schemas/camera/camera.raml
+  Group: !include schemas/group/group.raml
+
+securitySchemes:
+  basic: !include ../securitySchemes/basic.raml
+  wsseargs: !include ../securitySchemes/wsse-args.raml
+  wsseheaders: !include ../securitySchemes/wsse-headers.raml
+
+securedBy: [basic,  wsseargs, wsseheaders]
+
+#Commons all versions
+
+/openheadband: !include paths/openHeadBand.raml
+
+/cameras:
+  # ================ v1 ================
+  /: !include paths/cameras/cameras.raml
+  /{id}: !include paths/cameras/id.raml
+  /{id}:
+  # ================ v1 ================
+    /alarms: !include paths/cameras/camera/alarms.raml
+    /ptz: !include paths/cameras/camera/ptz.raml
+    /ref.jpg: !include paths/cameras/camera/ref.raml
+    /indexing:
+      /: !include paths/cameras/camera/indexing/indexing.raml
+      /{idx}:
+        # ================ v1 ================
+        get: !include paths/cameras/camera/indexing/iid.get.v1.raml
+        # ================ v1 ================
+        delete: !include paths/cameras/camera/indexing/iid.delete.raml
+
+  /alarms:
+    /: !include paths/cameras/alarms/alarms.raml
+    /trigger: !include paths/cameras/alarms/trigger.raml
+    /untrigger: !include paths/cameras/alarms/untrigger.raml
+    /{id}.jpg: !include paths/cameras/alarms/snapshot.raml
+
+/exturls:
+  /: !include paths/exturls/exturls.raml
+  /{id}:
+    /:
+      # ================ v1 ================
+      get: !include paths/exturls/id.get.v1.raml
+      # ================ v1 ================
+      put: !include paths/exturls/id.put.raml
+      delete: !include paths/exturls/id.delete.raml
+    /trigger: !include paths/exturls/trigger.raml
+
+/groups:
+  /: !include paths/groups/groups.raml
+  # ================ v1 ================
+  /{id}: !include paths/groups/id.raml
+  # ================ v1 ================
+
+/screens:
+  /: !include paths/screens/screens.raml
+  /{id}:
+    # ================ v1 ================
+    get: !include paths/screens/id.get.v1.raml
+    # ================ v1 ================
+    put: !include paths/screens/id.put.raml
+
+/servers: !include paths/servers.raml
+

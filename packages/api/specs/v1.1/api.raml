@@ -1,0 +1,130 @@
+#%RAML 1.0
+
+title: API Camtrace
+version: v1.1
+baseUri: http://camtrace/api/v1.1
+protocols: [  HTTP, HTTPS ]
+mediaType: [ application/json ]
+types:
+  Server: !include ../v1/schemas/server/server.raml
+  Camera: !include ../v1/schemas/camera/camera.raml
+  Group: !include ../v1/schemas/group/group.raml
+
+securitySchemes:
+  basic: !include ../securitySchemes/basic.raml
+  wsseargs: !include ../securitySchemes/wsse-args.raml
+  wsseheaders: !include ../securitySchemes/wsse-headers.raml
+
+securedBy: [basic,  wsseargs, wsseheaders]
+
+#Commons all versions
+
+/openheadband: !include ../v1/paths/openHeadBand.raml
+
+/cameras:
+  # ================ v1.1 ================
+  /: !include paths/cameras/cameras.raml
+  /{id}: !include paths/cameras/id.raml
+  /{id}:
+    /options/{optId}:
+      /: !include paths/cameras/options/id.raml
+      /trigger: !include paths/cameras/options/trigger.raml
+    # ================ v1.1 ================
+    /alarms: !include ../v1/paths/cameras/camera/alarms.raml
+    /ptz: !include ../v1/paths/cameras/camera/ptz.raml
+    /ref.jpg: !include ../v1/paths/cameras/camera/ref.raml
+    /indexing:
+      /: !include ../v1/paths/cameras/camera/indexing/indexing.raml
+      /{idx}:
+        delete: !include ../v1/paths/cameras/camera/indexing/iid.delete.raml
+    # ================ v1.1 ================
+        get: !include paths/cameras/camera/indexing/iid.get.raml
+    /alarmimage/{timestamp}: !include paths/cameras/camera/alarmimage/timestamp.raml
+    # ================ v1.1 ================
+
+  /alarms:
+    /: !include ../v1/paths/cameras/alarms/alarms.raml
+    /trigger: !include ../v1/paths/cameras/alarms/trigger.raml
+    /untrigger: !include ../v1/paths/cameras/alarms/untrigger.raml
+    /{id}.jpg: !include ../v1/paths/cameras/alarms/snapshot.raml
+
+
+/exturls:
+  /: !include ../v1/paths/exturls/exturls.raml
+  /{id}:
+    # ================ v1.1 ================
+    get: !include paths/exturls/id.get.raml
+    # ================ v1.1 ================
+    put: !include ../v1/paths/exturls/id.put.raml
+    delete: !include ../v1/paths/exturls/id.delete.raml
+  /{id}:
+    /trigger: !include ../v1/paths/exturls/trigger.raml
+
+/groups:
+  /: !include ../v1/paths/groups/groups.raml
+# ================ v1.1 ================
+  /{id}: !include paths/groups/id.raml
+# ================ v1.1 ================
+
+/screens:
+  /: !include ../v1/paths/screens/screens.raml
+  /{id}:
+    # ================ v1.1 ================
+    get: !include paths/screens/id.get.raml
+    # ================ v1.1 ================
+    put: !include ../v1/paths/screens/id.put.raml
+
+/servers: !include ../v1/paths/servers.raml
+
+# ================ v1.1 ================
+
+/snapshots:
+  /: !include paths/snapshots/snapshots.raml
+  /{id}: !include paths/snapshots/id.raml
+  /{id}.jpg: !include paths/snapshots/jpg.raml
+  /{id}.pdf: !include paths/snapshots/pdf.raml
+
+/health: !include paths/health.raml
+
+/accesstokens:
+  /: !include paths/accesstokens/accesstokens.raml
+  /{token}: !include paths/accesstokens/token.raml
+
+/exports:
+  /: !include paths/exports/exports.raml
+  /disks: !include paths/exports/disks.raml
+  /{id}:
+    /: !include paths/exports/id.raml
+    /download: !include paths/exports/export/download.raml
+    /md5sum: !include paths/exports/export/md5sum.raml
+
+/purges: !include paths/purges.raml
+/users:
+  /: !include paths/users/users.raml
+  /login: !include paths/users/login.raml
+  /{id}: !include paths/users/id.raml
+  /current: !include paths/users/current.raml
+  /{name}/auth: !include paths/users/name-auth.raml
+
+/profiles:
+  /: !include paths/profiles/profiles.raml
+  /{id}: !include paths/profiles/id.raml
+
+/devices:
+  /: !include paths/devices/devices.raml
+  /{devId}:
+    /: !include paths/devices/id.raml
+    /proxy/{url}: !include paths/devices/device/proxy.raml
+    /events: !include paths/devices/device/events.raml
+
+/events/{id}: !include paths/events/id.raml
+/events/{id}.html: !include paths/events/id-html.raml
+
+/license: !include paths/license.raml
+/sysinfo: !include paths/sysinfo.raml
+
+/maps:
+  /: !include paths/maps/maps.raml
+  /{uuid}:
+   /: !include paths/maps/uuid.raml
+   /items: !include paths/maps/map/items.raml

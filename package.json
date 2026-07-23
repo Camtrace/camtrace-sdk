@@ -1,0 +1,9 @@
+{
+  "name": "camtrace-demo",
+  "version": "1.0.1",
+  "private": true,
+  "workspaces": [
+    "apps/demo",
+    "packages/*"
+  ]
+}

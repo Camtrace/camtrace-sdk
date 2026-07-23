@@ -1,0 +1,16 @@
+description: Authentification WSSE par arguments GET
+type: x-custom
+describedBy:
+  queryParameters:
+    _username:
+      type: string
+      description: "Nom d'utilisateur"
+    _password:
+      type: string
+      description: "DigestPassword : base64(sha1(<nonce><created-at><md5-password>))"
+    _nonce:
+      type: string
+      description: "Chaine de caractères aléatoire générée pour chaque requête"
+    _created_at:
+      type: string
+      description: "Date au format ISO-8601"

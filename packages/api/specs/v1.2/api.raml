@@ -1,0 +1,58 @@
+#%RAML 1.0
+
+title: API Camtrace
+version: v1.2
+baseUri: http://camtrace/api/v1.2
+protocols: [  HTTP, HTTPS ]
+mediaType: [ application/json ]
+types:
+  Server: !include ../v1/schemas/server/server.raml
+  Camera: !include ../v1/schemas/camera/camera.raml
+  Group: !include ../v1/schemas/group/group.raml
+
+securitySchemes:
+  basic: !include ../securitySchemes/basic.raml
+  wsseargs: !include ../securitySchemes/wsse-args.raml
+  wsseheaders: !include ../securitySchemes/wsse-headers.raml
+
+securedBy: [basic,  wsseargs, wsseheaders]
+
+#Commons all versions
+
+/openheadband: !include ../v1/paths/openHeadBand.raml
+
+/cameras:
+  /{id}:
+    /alarms: !include ../v1/paths/cameras/camera/alarms.raml
+    /ptz: !include ../v1/paths/cameras/camera/ptz.raml
+    /ref.jpg: !include ../v1/paths/cameras/camera/ref.raml
+    /indexing: !include ../v1/paths/cameras/camera/indexing/indexing.raml
+    /indexing/{idx}:
+      delete: !include ../v1/paths/cameras/camera/indexing/iid.delete.raml
+
+  /alarms:
+    /: !include ../v1/paths/cameras/alarms/alarms.raml
+    /trigger: !include ../v1/paths/cameras/alarms/trigger.raml
+    /untrigger: !include ../v1/paths/cameras/alarms/untrigger.raml
+    /{id}.jpg: !include ../v1/paths/cameras/alarms/snapshot.raml
+
+/exturls:
+  /: !include ../v1/paths/exturls/exturls.raml
+  /{id}:
+    /:
+      put: !include ../v1/paths/exturls/id.put.raml
+      delete: !include ../v1/paths/exturls/id.delete.raml
+    /trigger: !include ../v1/paths/exturls/trigger.raml
+
+/groups: !include ../v1/paths/groups/groups.raml
+
+/screens:
+  /: !include ../v1/paths/screens/screens.raml
+  /{id}:
+    put: !include ../v1/paths/screens/id.put.raml
+
+/servers: !include ../v1/paths/servers.raml
+
+# ================ v1.2 ================
+
+/users/login: !include paths/users/login.raml

@@ -1,0 +1,13 @@
+#%RAML 1.0 DataType
+
+properties:
+  name:
+    type: string
+    description: "Nom du niveau"
+  duration:
+    type: integer
+    format: int32
+    description: "Temps d'un cycle"
+  elements:
+    type: array
+    items: !include element.raml

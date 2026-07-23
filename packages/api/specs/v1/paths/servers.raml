@@ -1,0 +1,8 @@
+get:
+  description: "La liste des serveurs permet d'obtenir les ports utilisés par le serveur local ainsi que les autres serveurs du cluster CamTrace. Le serveur dont l'id est 0 est le serveur local."
+  securedBy: [null]
+  responses:
+    200:
+      body:
+        properties:
+          servers: Server[]

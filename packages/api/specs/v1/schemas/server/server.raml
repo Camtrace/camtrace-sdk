@@ -1,0 +1,29 @@
+#%RAML 1.0 DataType
+
+properties:
+  id:
+    type: integer
+    format: int32
+    description: "Identifiant du serveur (0 = local)"
+  name:
+    type: string
+    description: "Nom du serveur"
+  host:
+    type: string
+    description: "Nom d'hôte du serveur"
+  httpPort:
+    type: integer
+    format: int32
+    description: "Port HTTP du serveur"
+  livePort:
+    type: integer
+    format: int32
+    description: "Port live du serveur"
+  controlPort:
+    type: integer
+    format: int32
+    description: "Port de controle du serveur"
+  recordsPort:
+    type: integer
+    format: int32
+    description: "Port des enregistrements du serveur"

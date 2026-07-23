@@ -1,0 +1,126 @@
+#%RAML 1.0 DataType
+
+description: Une camera
+properties:
+  id:
+    type: number
+    format: int32
+    description: "Identifiant Camtrace de la caméra."
+  name:
+    type: string
+    description: "Nom de la caméra sur le serveur."
+  hdStream:
+    type: string
+    description: "Path du flux haute qualité."
+  hdEncoding:
+    type: string
+    description: "Format du flux haute qualité (MPEG4, H264 ou JPEG)."
+  hdWidth:
+    type: number
+    format: int32
+    description: "Largeur du flux haute qualité."
+  hdHeight:
+    type: number
+    format: int32
+    description: "Hauteur du flux haute qualité."
+  mdStream:
+    type: string
+    description: "Path du flux moyenne qualité."
+  mdEncoding:
+    type: string
+    description: "Format du flux moyenne qualité (MPEG4, H264 ou JPEG)."
+  mdWidth:
+    type: number
+    format: int32
+    description: "Largeur du flux moyenne qualité."
+  mdHeight:
+    type: number
+    format: int32
+    description: "Hauteur du flux moyenne qualité."
+  ldStream:
+    type: string
+    description: "Path du flux basse qualité."
+  ldEncoding:
+    type: string
+    description: "Format du flux basse qualité (MPEG4, H264 ou JPEG)."
+  ldWidth:
+    type: number
+    format: int32
+    description: "Largeur du flux basse qualité."
+  ldHeight:
+    type: number
+    format: int32
+    description: "Hauteur du flux basse qualité."
+  alStream:
+    type: string
+    description: "Path du flux d'alarme (le flux est actif en cas d'alarme)."
+  alEncoding:
+    type: string
+    description: "Format du flux d'alarme (MPEG4, H264 ou JPEG)."
+  alWidth:
+    type: number
+    format: int32
+    description: "Largeur du flux d'alarme."
+  alHeight:
+    type: number
+    format: int32
+    description: "Hauteur du flux d'alarme."
+  rpStream:
+    type: string
+    description: "Path du flux de relecture de dernière alarme."
+  rpEncoding:
+    type: string
+    description: "Format du flux de relecture de dernière alarme (MPEG4, H264 ou JPEG)."
+  rpWidth:
+    type: number
+    format: int32
+    description: "Largeur du flux de relecture de dernière alarme."
+  rpHeight:
+    type: number
+    format: int32
+    description: "Hauteur du flux de relecture de dernière alarme."
+  displayCode:
+    type: number
+    format: int32
+    description: "Code utilisé pour afficher la caméra dans un groupe."
+  isIgnored:
+    type: boolean
+    description: "True si la caméra est ignoré dans la configuration."
+  isRecording:
+    type: boolean
+    description: "True si la caméra est en enregistrement."
+  isRecordingAlarm:
+    type: boolean
+    description: "True si la caméra est en enregistrement d'alarme."
+  isRecordingForced:
+    type: boolean
+    description: "True si la caméra est en enregistrement forcé."
+  isRemote:
+    type: boolean
+    description: "True si la caméra est une caméra distante (connecté si au moins un client regarde le flux)."
+  isReplayEnabled:
+    type: boolean
+    description: "True si le mode relecture de dernière alarme est activé ou pas."
+  isUpsideDown:
+    type: boolean
+    description: "True si l'orientation de l'image est inversé"
+  model:
+    type: string
+    description: "Nom du modèle de la caméra"
+  playLiveAllowed:
+    type: boolean
+    description: "True si la lecture du direct est autorisé pour l'utilisateur courant"
+  playRecordsAllowe:
+    type: boolean
+    description: "True si la lecture des enregistrements est autorisé pour l'utilisateur courant"
+  ptzAllowed:
+    type: boolean
+    description: "True si les actions PTZ sont autorisés pour l'utilisateur courant"
+  refUrl:
+    type: string
+    description: "Path de l'image de référence si elle existe"
+  status:
+    type: number
+    format: int32
+    description: "Etat de la caméra: -2 pour ignoré par le serveur, -1 pour erreur, 0 pour service vidéo éteint, 1 pour caméra en lecture seule et 2 pour tout ok"
+  ptz: !include camera-ptz.raml

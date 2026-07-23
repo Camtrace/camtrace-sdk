@@ -1,0 +1,6 @@
+export { default as SimpleService }           from './SimpleService'
+export { default as services }               from './services'
+export { connectToServer, CTRL_CONNECT_RETRY_INTERVAL } from './connectToServer'
+export { default as LivePlayer }             from './LivePlayer'
+export { default as PlaybackPlayer }         from './PlaybackPlayer'
+export { setupCordovaHooks }                 from './platform'

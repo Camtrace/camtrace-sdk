@@ -1,0 +1,10 @@
+{
+  "name": "@camtrace/web-video-decoder",
+  "version": "1.0.0",
+  "author": "CamTrace SAS",
+  "main": "src/app.js",
+  "license": "MIT",
+  "dependencies": {
+    "event-emitter-es6": "^1.1.5"
+  }
+}

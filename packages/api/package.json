@@ -1,0 +1,30 @@
+{
+    "name": "@camtrace/api",
+    "version": "1.23.0",
+    "private": true,
+    "main": "build/build.js",
+    "author": "CamTrace SAS",
+    "license": "MIT",
+    "devDependencies": {
+        "@babel/core": "^7.18.0",
+        "@babel/preset-env": "^7.18.0",
+        "babel-loader": "^8.2.5",
+        "base64-loader": "^1.0.0",
+        "process": "^0.11.10",
+        "webpack": "^5.72.1",
+        "webpack-cli": "^4.9.2",
+        "webpack-node-externals": "^3.0.0"
+    },
+    "dependencies": {
+        "axios": "^0.27.2",
+        "bcryptjs": "^2.4.3",
+        "encoding": "^0.1.13",
+        "es6-promise": "^4.2.8",
+        "isomorphic-fetch": "^3.0.0",
+        "wsse": "^5.1.0"
+    },
+    "scripts": {
+        "dev": "webpack --mode=development --progress",
+        "build": "webpack --mode=production --progress"
+    }
+}

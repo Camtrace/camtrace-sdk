@@ -1,0 +1,39 @@
+#%RAML 1.0 DataType
+
+properties:
+  id:
+    type: integer
+    format: int32
+    description: "Identifiant du groupe"
+  name:
+    type: "string"
+    description: "Nom du groupe"
+  rows:
+    type: integer
+    format: int32
+    description: "Nombre de lignes"
+  cols:
+    type: integer
+    format: int32
+    description: "Nombre de colonnes"
+  fullScreen:
+    type: "boolean"
+    description: "Pleine écran"
+  stayOnTop:
+    type: "boolean"
+    description: "Reste au dessus"
+  displayCode:
+    type: integer
+    format: int32
+    description: "Code d'affichage"
+  layout:
+    type: array
+    description: "Disposition des elements"
+    items:
+      type: array
+      items:
+        type: integer
+        format: int32
+  levels:
+    type: array
+    items: !include level.raml
