@@ -11,8 +11,12 @@ import services     from './services'
 //   stop()        — stops playback; video channel stays open for resume.
 //   setBarType()  — switches recording type; mirrors mobile Overlay.vue: only sends 'type'.
 //   close()       — closes everything.
+//
+// streamType is the `_accept` protocol variant (v1, v1a, v1b…), not a MIME type:
+// leave it undefined so the variant advertised at login is used — forcing a wrong
+// value downgrades the connection to v1, which carries no H265 and no audio.
 export default class PlaybackPlayer extends EventEmitter {
-    constructor(cmInterface, cameraId, { DecoderClass = null, streamType = 'video/h264' } = {}) {
+    constructor(cmInterface, cameraId, { DecoderClass = null, streamType = undefined } = {}) {
         super()
         this.cmInterface  = cmInterface
         this.cameraId     = cameraId

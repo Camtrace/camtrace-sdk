@@ -21,10 +21,9 @@ Practical consequences:
 ## Development setup
 
 ```bash
-npm install                                # installs all workspaces
-npm run build --workspace packages/api     # build the API client
-npm run build --workspace packages/decoder # build the protocol decoder
-cd apps/demo && npm run dev                # start the demo (http://localhost:8080)
+npm install        # installs all workspaces (uses the committed package-lock.json)
+npm run build      # builds @camtrace/api and @camtrace/decoder (consumed compiled)
+npm run demo       # starts the demo dev server (http://localhost:8080)
 ```
 
 Requirements: Node 18+, npm 8+, a modern browser, and a reachable CamTrace

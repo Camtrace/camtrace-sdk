@@ -127,7 +127,9 @@ activetour-updated <cameraId> [args]
 
 ### Live video stream (binary)
 
-**URL:** `cm.buildLiveCameraUrl(streamUrl, accept?, type?, compr?)` → `wss://…/live/view?id=…&accept=video/h264&…`
+**URL:** `cm.buildLiveCameraUrl(streamUrl, accept?, type?, compr?)` → `wss://…/live/view?id=…&_accept=v1b&…`
+
+**`accept` is a protocol variant, not a MIME type.** The server rewrites `_accept=<value>` into an `Accept: application/vnd.camtrace.<value>` header and uses it to decide what the client can receive: `v1` = base, `v1a` = +audio, `v1b` = +H265, `v1c` = +analytics metadata. Any unknown value (a MIME type such as `video/h264`, for instance) downgrades the connection to `v1`: an H265 camera then sends **no video packet at all** and the stream stays silent. Use `cm.streamProtocol()` — the variant returned at login in `services.mobile.stream_protocol` — or omit the argument when using `@camtrace/streaming`, which fills it in for you.
 
 **Mosaic (multiple cameras):** `cm.buildGroupLiveCameraUrl(cameraIds[], …)` → `wss://…/live/mosaic?ids=1,2,3&…`
 

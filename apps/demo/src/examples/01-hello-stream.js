@@ -30,8 +30,11 @@ async function main() {
     const cameras = await cm.cameras()
     const stream  = cameras[0].formatedStreams.hd
 
-    // 3. Build the authenticated WebSocket URL
-    const wsUrl = await cm.buildLiveCameraUrl(stream.url, 'video/h264')
+    // 3. Build the authenticated WebSocket URL.
+    //    The second argument is the `_accept` protocol variant (v1, v1a, v1b…),
+    //    not a MIME type — cm.streamProtocol() returns the one the server
+    //    advertised at login, which is what enables H265 and audio.
+    const wsUrl = await cm.buildLiveCameraUrl(stream.url, cm.streamProtocol())
 
     // 4. Set up decoder and renderer
     const decoder = new CMDecoder.Live()

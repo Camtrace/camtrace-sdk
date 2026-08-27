@@ -10,13 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install
+      - run: npm ci
       - run: npm run build --workspace packages/api
       - run: npm run build --workspace packages/decoder
       - run: npm run build --workspace apps/demo

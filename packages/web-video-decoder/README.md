@@ -98,3 +98,21 @@ module.exports = {
 ```
 
 **Vite:** no additional configuration needed — Vite handles `import.meta.url` and Web Workers natively.
+
+## License and rebuilding the WASM module
+
+The WebAssembly module (`src/mp4info.{js,wasm,worker.js}`) is a build of **FFmpeg 7.1**,
+licensed under the **LGPL-2.1-or-later** (configured without GPL or non-free components).
+The wrapper and the JavaScript of this package are MIT. See `THIRD_PARTY_NOTICES.md` at
+the root of the repository for the full notices.
+
+The complete build recipe is in `ffmpeg-wasm/` (Dockerfile with the `configure` flags,
+Makefile with the Emscripten link flags, `src/mp4info-wrapper.cpp`). To rebuild the
+module — for instance against a modified FFmpeg — run:
+
+```bash
+scripts/rebuild-wasm.sh    # requires Docker; ~15-30 min on first run
+```
+
+The FFmpeg source archive is downloaded from ffmpeg.org and checksum-verified by the
+Dockerfile (a vendored copy next to the Dockerfile is used instead when present).

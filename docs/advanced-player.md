@@ -174,7 +174,7 @@ await services.openControlRecordService(cm, cam.id, async (ctrlService, playerId
     ctrlService.cmDecoder.on('load', resolve))
 
   // Step 3 — open the video channel now that the player ID is known
-  const vidService = await services.openVideoRecordService(cm, playerId, 'video/h264')
+  const vidService = await services.openVideoRecordService(cm, playerId)
 
   vidService.cmDecoder.on('packet', pck => {
     if (pck.name === 'status') {

@@ -5,17 +5,18 @@ connection → authentication → live stream → record playback.
 
 ## Quick start
 
-From the **repo root**, prepare the demo (builds shared packages, installs demo deps):
+The demo depends on the `@camtrace/*` packages of this repository, which must be installed and built first. From the **repository root**:
 
 ```bash
-./build.sh demo
+npm install        # installs the demo and the packages (npm workspaces)
+npm run build      # builds @camtrace/api and @camtrace/decoder
+npm run demo       # starts this dev server → http://localhost:8080
 ```
 
-Then start the dev server:
+Once the packages are built, the dev server can also be started from this directory:
 
 ```bash
 cd apps/demo && npm run dev
-# → http://localhost:8080
 ```
 
 Enter your CamTrace server credentials in the login form. The app will list your cameras and let you watch live streams and recorded video.

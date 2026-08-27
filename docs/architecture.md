@@ -39,7 +39,7 @@ sequenceDiagram
   API->>Srv: GET /api/ + GET /users/login
   Srv-->>API: services URLs + camera list
 
-  App->>API: buildLiveCameraUrl(stream.url, 'video/h264')
+  App->>API: buildLiveCameraUrl(stream.url, cm.streamProtocol())
   API-->>App: wss://…/live/view?id=…&_username=…
 
   App->>Srv: WebSocket connect

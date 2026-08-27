@@ -1,6 +1,12 @@
 # CamTrace Integration SDK — Demo
 
+[![CI](https://github.com/Camtrace/camtrace-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Camtrace/camtrace-sdk/actions/workflows/ci.yml)
+
 This package contains a self-contained demo and the four reusable modules that power live and recorded video playback from CamTrace servers.
+
+CamTrace is a video management system (VMS). This SDK lets a web application authenticate to a CamTrace server, enumerate its cameras, and display live and recorded video streams in the browser — the same building blocks CamTrace's own applications use.
+
+**Status:** the `@camtrace/*` packages are not published on npm yet — consume them from this repository (see the quickstarts). Licensed under the MIT License; the bundled FFmpeg WebAssembly decoder is LGPL, see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## What's included
 
@@ -12,15 +18,18 @@ This package contains a self-contained demo and the four reusable modules that p
 | `packages/streaming/` | High-level facades — `LivePlayer`, `PlaybackPlayer`, WebSocket services |
 | `packages/web-video-decoder/` | Generic FFmpeg-WASM wrapper — renders H264 to canvas (replaceable with any H264 decoder) |
 | `docs/` | Integration documentation |
+| `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md` | Release notes; licenses of bundled third-party components (FFmpeg LGPL, npm dependencies) |
 
 ## Quickstart (5 minutes)
 
-**Requirements:** Node 16+, a running CamTrace server accessible on the network.
+**Requirements:** Node 18+, npm 8+, a running CamTrace server (API v1.2) reachable from your machine.
+
+From the root of this package (or of a clone of the repository):
 
 ```bash
-cd apps/demo
-npm install
-npm run dev
+npm install        # installs the demo and the four packages (npm workspaces)
+npm run build      # builds @camtrace/api and @camtrace/decoder
+npm run demo       # starts the demo dev server
 # Open http://localhost:8080
 # Enter your CamTrace server address and credentials, then select a camera.
 ```
@@ -32,6 +41,7 @@ npm run dev
 - [`docs/architecture.md`](docs/architecture.md) — module overview and data flow
 - [`docs/advanced-player.md`](docs/advanced-player.md) — record playback protocol and controls
 - [`docs/api-and-protocols.md`](docs/api-and-protocols.md) — WSSE authentication and WebSocket protocol reference
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common errors and fixes
 
 ## Notes
 

@@ -17,8 +17,9 @@ await cm.simpleLogin('admin', 'plaintext_password')
 const cameras = await cm.cameras()
 const stream  = cameras[0].formatedStreams.hd
 
-// 3. Open live stream
-const liveService = await services.openLiveService(cm, stream.url, 'video/h264')
+// 3. Open live stream (the `_accept` protocol variant advertised at login is
+//    sent automatically — v1b, required for H265 cameras and for audio)
+const liveService = await services.openLiveService(cm, stream.url)
 
 // 4. Decode and render
 const decoder = new WebDecoder()
@@ -73,7 +74,7 @@ import CMDecoder from '@camtrace/decoder'
 const ctrl = new CMDecoder.Record.Control()
 await services.openControlRecordService(cm, cameraId, async (ctrlService, [playerId]) => {
   // Open video channel once we have a player ID
-  const vidService = await services.openVideoRecordService(cm, playerId, 'video/h264')
+  const vidService = await services.openVideoRecordService(cm, playerId)
   vidService.cmDecoder.on('packet', pck => decoder.sendPacket(pck, w, h, true))
 
   // Initialize and start

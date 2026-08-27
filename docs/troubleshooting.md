@@ -74,8 +74,22 @@ The decoder received packets but nothing appears. Check:
 
 ### No `packet` events after connecting
 
+- **H265 camera, and the same code works on H264 cameras?** You are almost certainly sending a wrong `_accept` value. It is a CamTrace protocol variant (`v1` base, `v1a` +audio, `v1b` +H265), **not a MIME type** — an unrecognised value such as `'video/h264'` downgrades the connection to `v1`, and an H265 camera then sends no video packet at all: the WebSocket opens, stays open, and nothing arrives. Omit the argument (`@camtrace/streaming` fills in the right variant) or pass `cm.streamProtocol()` when building URLs yourself. Verify in DevTools → Network → WS: the stream URL must carry `_accept=v1b`.
 - The live service connects but the server may not be sending. Verify the stream URL includes a valid `id` parameter (stream ID from `cam.formatedStreams.hd.url`).
 - The keep-alive ping (every 30s) is sent automatically by `SimpleService`. If the stream silently closes, check for `close` events on the service.
+
+### Video breaks after enabling the right protocol variant
+
+`v1b` carries more than H265: the same WebSocket also delivers **audio** packets and analytics metadata. The audio description subtype (83) has the same value as the video SPS/PPS subtype, so a consumer that dispatches on `pck.subtype` alone will feed audio into the video decoder and corrupt streams that used to work.
+
+Always filter on `pck.name` first:
+```js
+if (pck.name === 'status') return
+if (pck.name === 'jpeg')   { /* drawImage */ return }
+if (!['h264', 'h265', 'mpeg4'].includes(pck.name)) return   // audio, metadata…
+decoder.sendPacket(pck, canvas.width, canvas.height, true)
+```
+`@camtrace/web-video-decoder` applies this filter internally; a custom or native decoder must do it explicitly.
 
 ### Stream stops after ~30 seconds
 

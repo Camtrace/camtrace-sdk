@@ -40,7 +40,7 @@ ctrl.createPlayer()   // sends "CTL"
 ctrl.on('id', async ([playerId]) => {
   // Video channel
   const vid   = new CMDecoder.Record.Video()
-  const vidWs = new WebSocket(await cm.buildReplayCameraVideoUrl(playerId, 'video/h264'))
+  const vidWs = new WebSocket(await cm.buildReplayCameraVideoUrl(playerId, cm.streamProtocol()))
   vidWs.binaryType = 'arraybuffer'
   vidWs.onmessage = e => vid.write(Buffer.from(e.data))
   vid.on('packet', pck => { /* render */ })

@@ -1,6 +1,6 @@
 {
   "name": "camtrace-demo",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "CamTrace integration demo — vanilla JS live and record playback",
   "private": true,
   "scripts": {

@@ -3,11 +3,8 @@ import WebDecoder    from '@camtrace/web-video-decoder'
 import { state }     from '../state.js'
 import { navigate }  from '../router.js'
 
-const ENCODING_PROTOCOL = {
-    H264:  'video/h264',
-    H265:  'video/h265',
-    MPEG4: 'video/mpeg4',
-}
+// Compressed video packets go to the WASM decoder; 'jpeg' is drawn directly.
+const COMPRESSED_TYPES = ['h264', 'h265', 'mpeg4']
 
 export default function LiveView(container, cameraIndex) {
     if (!state.cm || !state.cameras.length) { navigate('/'); return }
@@ -87,9 +84,6 @@ export default function LiveView(container, cameraIndex) {
             return
         }
 
-        // Use the stream's actual encoding — do not force h264 on a MJPEG camera
-        const protocol = ENCODING_PROTOCOL[stream.encoding] || undefined
-
         canvas.width        = stream.width  || 1280
         canvas.height       = stream.height || 720
         canvas.style.width  = '100%'
@@ -98,14 +92,31 @@ export default function LiveView(container, cameraIndex) {
         const ctx = canvas.getContext('2d')
 
         try {
-            const needsWasm = !!protocol
-            if (needsWasm) decoder = new WebDecoder()
-
-            liveService = await services.openLiveService(
-                state.cm, stream.url, protocol
-            )
+            // No protocol forced: the SDK sends the `_accept` variant the server
+            // advertised at login (v1b), which is what carries H265 and audio.
+            liveService = await services.openLiveService(state.cm, stream.url)
 
             let firstFrame = true
+
+            // Created on the first compressed packet, whatever the encoding — a
+            // MJPEG camera never spawns a decoder worker.
+            function ensureDecoder() {
+                if (decoder) return decoder
+                decoder = new WebDecoder()
+                decoder.on('decodeddata', ({ rgbData, width, height }) => {
+                    if (!active) return
+                    if (canvas.width !== width || canvas.height !== height) {
+                        canvas.width  = width
+                        canvas.height = height
+                        scheduleFit()
+                    }
+                    if (firstFrame) { statusEl.style.display = 'none'; firstFrame = false }
+                    ctx.putImageData(
+                        new ImageData(new Uint8ClampedArray(rgbData), width, height), 0, 0
+                    )
+                })
+                return decoder
+            }
 
             liveService.cmDecoder.on('packet', pck => {
                 if (pck.name === 'status') return
@@ -128,24 +139,13 @@ export default function LiveView(container, cameraIndex) {
                     return
                 }
 
-                if (decoder) {
-                    decoder.sendPacket(pck, canvas.width, canvas.height, true)
-                }
-            })
+                // Audio packets must never reach the video decoder: the WASM worker
+                // dispatches on subtype only, and the audio desc subtype (83 'S')
+                // collides with the video SPS/PPS subtype.
+                if (COMPRESSED_TYPES.indexOf(pck.name) === -1) return
 
-            if (decoder) {
-                decoder.on('decodeddata', ({ rgbData, width, height }) => {
-                    if (canvas.width !== width || canvas.height !== height) {
-                        canvas.width  = width
-                        canvas.height = height
-                        scheduleFit()
-                    }
-                    if (firstFrame) { statusEl.style.display = 'none'; firstFrame = false }
-                    ctx.putImageData(
-                        new ImageData(new Uint8ClampedArray(rgbData), width, height), 0, 0
-                    )
-                })
-            }
+                ensureDecoder().sendPacket(pck, canvas.width, canvas.height, true)
+            })
 
             liveService.on('close', () => {
                 statusEl.textContent = 'Stream closed'

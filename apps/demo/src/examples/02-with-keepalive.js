@@ -20,7 +20,9 @@ async function main() {
 
     // ── Option A: services low-level (access to SimpleService instance) ────
 
-    const liveService = await services.openLiveService(cm, stream.url, 'video/h264')
+    // No protocol argument: openLiveService sends the `_accept` variant the server
+    // advertised at login (v1b — H265 + audio). Pass one only to force an older variant.
+    const liveService = await services.openLiveService(cm, stream.url)
     const decoder     = new WebDecoder()
     const ctx         = CANVAS.getContext('2d')
     CANVAS.width  = stream.width  || 1280

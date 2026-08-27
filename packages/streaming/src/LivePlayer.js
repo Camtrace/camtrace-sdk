@@ -11,8 +11,12 @@ import services     from './services'
 //
 // DecoderClass is optional — if not provided, raw CMDecoder packets are emitted
 // as 'packet' events so the caller can render them with any decoder.
+//
+// streamType is the `_accept` protocol variant (v1, v1a, v1b…), not a MIME type:
+// leave it undefined so the variant advertised at login is used — forcing a wrong
+// value downgrades the connection to v1, which carries no H265 and no audio.
 export default class LivePlayer extends EventEmitter {
-    constructor(cmInterface, streamUrl, { DecoderClass = null, streamType = 'video/h264', type, compr } = {}) {
+    constructor(cmInterface, streamUrl, { DecoderClass = null, streamType = undefined, type, compr } = {}) {
         super()
         this.cmInterface = cmInterface
         this.streamUrl   = streamUrl

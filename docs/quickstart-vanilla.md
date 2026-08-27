@@ -17,8 +17,18 @@ See [webpack 5 dev-server configuration](#webpack-5-dev-server) below.
 
 ## Install
 
-```bash
-npm install @camtrace/api @camtrace/decoder @camtrace/streaming @camtrace/web-video-decoder
+The `@camtrace/*` packages are not published on npm yet. Get them from the SDK
+repository (a clone, or the delivered archive), build the compiled packages once at
+its root — `npm install && npm run build` — then reference them from your project
+with `file:` dependencies (or copy the `packages/` directory into your project):
+
+```json
+"dependencies": {
+  "@camtrace/api":               "file:../camtrace-sdk/packages/api",
+  "@camtrace/decoder":           "file:../camtrace-sdk/packages/decoder",
+  "@camtrace/streaming":         "file:../camtrace-sdk/packages/streaming",
+  "@camtrace/web-video-decoder": "file:../camtrace-sdk/packages/web-video-decoder"
+}
 ```
 
 ## HTML
@@ -98,7 +108,9 @@ async function startLive(stream) {
   const ctx = canvas.getContext('2d')
 
   decoder     = new WebDecoder()
-  liveService = await services.openLiveService(cm, stream.url, 'video/h264')
+  // No protocol argument: the SDK sends the `_accept` variant advertised by the
+  // server at login (v1b — required for H265 cameras and for audio).
+  liveService = await services.openLiveService(cm, stream.url)
 
   liveService.cmDecoder.on('packet', pck =>
     decoder.sendPacket(pck, canvas.width, canvas.height, true))

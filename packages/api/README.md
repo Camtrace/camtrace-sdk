@@ -19,8 +19,8 @@ const cam = cameras[0]
 // cam.formatedStreams → { hd, md, ld } each: { url, encoding, width, height }
 
 // 4. Build a live stream WebSocket URL (includes WSSE auth params)
-const liveUrl = await cm.buildLiveCameraUrl(cam.formatedStreams.hd.url, 'video/h264')
-// → "wss://192.168.1.100:443/live/view?id=1.1&accept=video%2Fh264&_username=…"
+const liveUrl = await cm.buildLiveCameraUrl(cam.formatedStreams.hd.url, cm.streamProtocol())
+// → "wss://192.168.1.100:443/live/view?id=1.1&_accept=v1b&_username=…"
 ```
 
 ## API Reference
@@ -43,6 +43,7 @@ Discovers the server API version and returns a `CMInterface` instance.
 | `login(user, cryptpass)` | WSSE login → returns `{ services, permissions }` |
 | `getCryptPass(user, plaintext)` | Returns BCrypt hash without logging in |
 | `buildAuth()` | Returns current WSSE token `{ username, digest, nonce, date }` |
+| `streamProtocol()` | Protocol variant to pass as `accept` on stream URLs (see below) |
 
 #### Cameras
 
@@ -66,6 +67,8 @@ These methods return fully-authenticated WebSocket URLs ready to pass to `new We
 | `buildReplayCameraControlUrl(cameraId)` | Record control channel URL |
 | `buildReplayCameraVideoUrl(playerId, accept?)` | Record video channel URL |
 | `buildControlUrl()` | Main server control channel URL |
+
+The `accept` argument is a **CamTrace protocol variant, not a MIME type**. It is sent as `_accept=<value>` and rewritten by the server into `Accept: application/vnd.camtrace.<value>`: `v1` = base, `v1a` = +audio, `v1b` = +H265, `v1c` = +analytics metadata. An unknown value silently downgrades the connection to `v1`, and an H265 camera then sends no video packet at all. Always pass `cm.streamProtocol()` (the value the server returned at login in `services.mobile.stream_protocol`, `undefined` on servers predating the field).
 
 #### Other endpoints
 

@@ -107,6 +107,16 @@ class CMInterface {
             services: this.currentLoginInfos.services
         }
     }
+    // Protocol variant to send as the `_accept` parameter of the stream URLs.
+    // HAProxy rewrites it into `Accept: application/vnd.camtrace.<value>`, which is
+    // how the server decides what a client can receive:
+    //   v1 = base, v1a = +audio, v1b = +H265/shadow frames, v1c = +analytics metadata.
+    // An unknown value (e.g. a MIME type) downgrades the connection to v1, so an
+    // H265 camera then streams nothing at all.  Returns undefined on servers that
+    // predate the field — the stream falls back to v1, which is the correct behaviour.
+    streamProtocol() {
+        return this.currentLoginInfos?.services?.mobile?.stream_protocol
+    }
     buildUrl(href = "") {
         return "http" + ((this.ssl) ? ("s") : ("")) + "://" + this.host + ((this.port) ? (":" + this.port) : ("")) + href
     }

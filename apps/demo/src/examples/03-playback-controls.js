@@ -75,7 +75,9 @@ async function main() {
         ))
 
     await services.openControlRecordService(cm, cam.id, async (ctrlService, playerId) => {
-        const vidService = await services.openVideoRecordService(cm, playerId, 'video/h264')
+        // No protocol argument: the `_accept` variant advertised at login is used
+        // (v1b — H265 + audio). Pass one only to force an older variant.
+        const vidService = await services.openVideoRecordService(cm, playerId)
 
         vidService.cmDecoder.on('packet', pck =>
             decoder.sendPacket(pck, CANVAS.width, CANVAS.height, true))
