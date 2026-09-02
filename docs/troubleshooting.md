@@ -2,15 +2,24 @@
 
 ## Connection issues
 
-### `loadApis()` throws "Server API version too old"
+### Reading `@camtrace/api` errors
 
-The CamTrace server must be **v1.2 or later**. Versions v1 and v1.1 are not supported. Check your server version in its admin interface.
+`loadApis()`, `simpleLogin()`, `login()` and `getCryptPass()` reject with an `ApiError`
+whose `code` tells the cause (`err.httpStatus` and `err.cause` carry the details):
 
-### `loadApis()` throws "Not compatible version (API version error)"
+| `err.code` | Cause | What to check |
+|---|---|---|
+| `NETWORK` | DNS, connection refused, TLS error, offline — or a server without CORS headers (the browser hides the answer) | Host / port / SSL, firewall, certificate, CORS on the server |
+| `TIMEOUT` | No answer within 15 s (`loadApis(…, { timeout })` to change it), or a network failure after 10 s or more | Filtered IP, captive portal, VPN |
+| `BAD_RESPONSE` | `GET /api/` returned something that is not the discovery JSON | Wrong port (another web server answers), reverse proxy, captive portal |
+| `HTTP_ERROR` | `GET /api/` returned a non-2xx status | Server-side error, path rewriting |
+| `VERSION_TOO_OLD` | Server API v1 / v1.1 | The server must be **v1.2 or later** |
+| `VERSION_UNSUPPORTED` | Unknown API version | Verify the host really is a CamTrace server |
+| `AUTH_FAILED` | HTTP 401 after the clock-drift retry | User name / password; see below |
+| `AUTH_HTTP` | Other HTTP status during authentication | Server logs |
+| `AUTH_CONFIG` | No WSSE salt for this user (or hashing failed) | The user must have WSSE authentication enabled on the server |
 
-The server responded with an unrecognized API version. Verify the host, port, and SSL settings match the server configuration.
-
-### 401 Unauthorized
+### `AUTH_FAILED` (401 Unauthorized)
 
 WSSE authentication failed. Possible causes:
 - Wrong username or password

@@ -25,13 +25,48 @@ const liveUrl = await cm.buildLiveCameraUrl(cam.formatedStreams.hd.url, cm.strea
 
 ## API Reference
 
-### `CamtraceApi.loadApis(host, port, ssl, [appVersion])`
+### `CamtraceApi.loadApis(host, port, ssl, [appVersion], [options])`
 
 Discovers the server API version and returns a `CMInterface` instance.
 
 - Calls `GET /api/` — rejects servers older than v1.2
 - Calculates clock drift (`timeShift`) for WSSE timestamp accuracy
 - `appVersion` is forwarded as `_mobile` query param on service URLs (optional, pass your app version string)
+- `options.timeout` (ms, default 15000): abort delay of the discovery request, also used as the
+  HTTP timeout of every request made by the returned `CMInterface`
+
+### Errors
+
+`loadApis()`, `simpleLogin()`, `login()` and `getCryptPass()` reject with an `ApiError`:
+
+```js
+import CamtraceApi, { ApiError, ApiErrorCodes } from '@camtrace/api'
+
+try {
+  const cm = await CamtraceApi.loadApis(host, port, ssl)
+  await cm.simpleLogin(user, pass)
+} catch (err) {
+  if (err instanceof ApiError) {
+    console.log(err.code, err.httpStatus, err.message)   // e.g. "AUTH_FAILED", 401, "Authentication failed…"
+    console.log(err.cause)                               // original fetch / axios error
+  }
+}
+```
+
+| `err.code` | Raised by | Meaning |
+|---|---|---|
+| `NETWORK` | discovery, auth | DNS failure, connection refused, TLS error, offline (`err.cause` = fetch/axios error) |
+| `TIMEOUT` | discovery, auth | No answer within the timeout, or the platform gave up on the connection after 10 s or more |
+| `BAD_RESPONSE` | discovery | `GET /api/` did not return the expected JSON (wrong port, proxy, captive portal) |
+| `HTTP_ERROR` | discovery | Non-2xx status on `GET /api/` (`err.httpStatus`) |
+| `VERSION_TOO_OLD` | discovery | Server API v1 / v1.1 |
+| `VERSION_UNSUPPORTED` | discovery | Unknown API version |
+| `AUTH_FAILED` | auth | HTTP 401 after the clock-drift retry: wrong user name or password |
+| `AUTH_HTTP` | auth | Other HTTP status during authentication (`err.httpStatus`) |
+| `AUTH_CONFIG` | auth | The user has no WSSE salt on the server, or the hash could not be computed |
+
+`err.message` is always a readable English sentence. The other endpoints (`cameras()`,
+`license()`…) reject with the raw axios error (`err.response.status` when the server answered).
 
 ### `CMInterface`
 
@@ -89,7 +124,7 @@ CamTrace uses WSSE UsernameToken authentication. HTTP requests use `Authorizatio
 3. Per-request digest = sha1(nonce + created_at + cryptpass)
 ```
 
-**Clock drift:** The server `Date` header on the first response is used to compute `timeShift = serverTime − localTime`, applied to all WSSE `Created` timestamps. A 401 response triggers an automatic recalculation and retry.
+**Clock drift:** The server `Date` header on the first response is used to compute `timeShift = serverTime − localTime`, applied to all WSSE `Created` timestamps. A 401 response triggers an automatic recalculation and retry; a second 401 rejects with `ApiError` `AUTH_FAILED`.
 
 ## Dependencies
 

@@ -214,6 +214,19 @@ new PlaybackPlayer(cmInterface, cameraId, { DecoderClass?, streamType? })
 
 Milliseconds between control channel reconnect attempts (default: `5000`).
 
+### `setLogHandler(fn)`
+
+```js
+import { setLogHandler } from '@camtrace/streaming'
+setLogHandler((level, message, data) => console[level](`[stream] ${message}`, data))
+```
+
+Optional sink for the WebSocket lifecycle of every `SimpleService` (`websocket opening`,
+`websocket open`, `websocket closed` with `code`/`reason`, `websocket error`, `websocket open
+failed`, `control channel connection failed`). `level` is `debug | info | warn | error`;
+`data.url` is the service URL without its authentication parameters. Nothing is logged until
+a handler is set.
+
 ## WebSocket lifecycle
 
 ```

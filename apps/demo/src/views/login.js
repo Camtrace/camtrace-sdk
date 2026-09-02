@@ -72,7 +72,9 @@ export default function LoginView(container) {
             saveCredentials({ host, port, ssl, user })
             navigate('/cameras')
         } catch (err) {
-            showError(err?.message || String(err) || 'Connection failed')
+            // @camtrace/api rejects with an ApiError: err.code is a stable identifier
+            // (NETWORK, TIMEOUT, AUTH_FAILED…), err.message a readable description
+            showError((err?.message || String(err) || 'Connection failed') + (err?.code ? ` [${err.code}]` : ''))
             btn.disabled    = false
             btn.textContent = 'Connect'
         }

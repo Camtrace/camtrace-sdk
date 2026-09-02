@@ -3,17 +3,21 @@ import BCrypt from 'bcryptjs'
 import Utils from 'CMApi/utils'
 import Versions from 'CMApi/versions'
 import {UsernameToken} from 'wsse'
+import { ApiError, ApiErrorCodes, fromAxiosError } from 'CMApi/errors'
 
 const ENDPOINTS_BY_VERSIONS = Versions.loadAllEndpointsInAllVersions()
 const API_PREFIX = "/api"
+// Per-request HTTP timeout (ms); axios 0.27 defaults to 0 = unlimited
+const REQUEST_TIMEOUT_MS = 15000
 
 class CMInterface {
-    constructor(host, port, ssl, serverVersion, mobile=undefined, timeShift=0) {
+    constructor(host, port, ssl, serverVersion, mobile=undefined, timeShift=0, requestTimeout=REQUEST_TIMEOUT_MS) {
         this.host = host
         this.port = port
         this.ssl = ssl
         this.mobile = mobile
         this.timeShift = timeShift
+        this.requestTimeout = (typeof requestTimeout === 'number') ? requestTimeout : REQUEST_TIMEOUT_MS
         this.apis = this.buildApis(serverVersion)
         this.currentLoginInfos = undefined
         this.wsse = undefined
@@ -22,6 +26,7 @@ class CMInterface {
         let apis = {}
         let axiosConfig = {
             params: {},
+            timeout: this.requestTimeout,
             responseType: 'text',
             headers: {
                 'Content-Type': 'text/plain'
@@ -84,23 +89,36 @@ class CMInterface {
     async simpleLogin(user, pass) {
         return (await this.login(user, (await this.getCryptPass(user, pass))))
     }
+    // Rejects with an ApiError: AUTH_CONFIG (no WSSE salt / hashing failed), AUTH_HTTP,
+    // TIMEOUT or NETWORK. The salt lookup is unauthenticated: an unknown user gets a
+    // decoy salt from the server and fails later in login() with AUTH_FAILED.
     async getCryptPass(user, pass) {
-        let auth = (await this.latestApi().nameAuth(user))
-        let findSalt = auth.auth.find(obj => (obj.type === "wsse" && obj.salt !== undefined))
-        if (findSalt && findSalt.salt) {
-            let hash = (await (new Promise((resolve, reject) => BCrypt.hash(pass, findSalt.salt, (err, hash) => ((!err) ? (resolve(hash)) : (resolve(undefined)))))))
-            if (hash && hash.length > 0) {
-                return hash
-            } else {
-                throw "Hash not found !"                
-            }
-        } else {
-            throw "Salt not found !"
+        let auth
+        try {
+            auth = (await this.latestApi().nameAuth(user))
+        } catch (error) {
+            throw fromAxiosError(error, { auth: true })
         }
+        let methods = (auth && Array.isArray(auth.auth)) ? auth.auth : []
+        let findSalt = methods.find(obj => (obj && obj.type === "wsse" && obj.salt !== undefined))
+        if (!(findSalt && findSalt.salt)) {
+            throw new ApiError(ApiErrorCodes.AUTH_CONFIG, 'Salt not found: no WSSE authentication configured for user "' + user + '"')
+        }
+        let hash = (await (new Promise((resolve, reject) => BCrypt.hash(pass, findSalt.salt, (err, hash) => ((!err) ? (resolve(hash)) : (resolve(undefined)))))))
+        if (!(hash && hash.length > 0)) {
+            throw new ApiError(ApiErrorCodes.AUTH_CONFIG, 'Hash not found: password hashing failed for user "' + user + '"')
+        }
+        return hash
     }
+    // Rejects with an ApiError: AUTH_FAILED (401 after the clock-drift retry), AUTH_HTTP
+    // (other status), TIMEOUT or NETWORK.
     async login(user, cryptpass) {
         this.wsse = { username: user, password: cryptpass }
-        this.currentLoginInfos = await this.latestApi().login()
+        try {
+            this.currentLoginInfos = await this.latestApi().login()
+        } catch (error) {
+            throw fromAxiosError(error, { auth: true })
+        }
         return {
             cryptpass,
             permissions: this.currentLoginInfos.permissions,

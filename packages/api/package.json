@@ -1,6 +1,6 @@
 {
     "name": "@camtrace/api",
-    "version": "1.24.0",
+    "version": "2.0.0",
     "private": true,
     "main": "build/build.js",
     "author": "CamTrace SAS",

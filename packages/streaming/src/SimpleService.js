@@ -1,5 +1,6 @@
 import EventEmitter from 'event-emitter-es6'
 import WSClient     from 'websocket-as-promised'
+import { log, safeUrl } from './log'
 
 const KEEP_ALIVE_DELAY = 30000
 
@@ -31,9 +32,14 @@ export default class SimpleService extends EventEmitter {
             this.cmDecoder.write(new Buffer(data))
         })
         this.ws.onClose.addListener(e => {
+            log('info', 'websocket closed', { url: safeUrl(this.link), code: e && e.code, reason: e && e.reason, wasClean: e && e.wasClean })
             this.clearKeepAlive()
             this.emit('close', e)
             this._cleanLifecycle()
+        })
+        this.ws.onError.addListener(e => {
+            log('warn', 'websocket error', { url: safeUrl(this.link) })
+            this.emit('error', e)
         })
         this.pauseCb = () => {}
         this.resumeCb = () => {}
@@ -91,7 +97,14 @@ export default class SimpleService extends EventEmitter {
 
     async connect() {
         await this.genLink()
-        await this.ws.open()
+        log('info', 'websocket opening', { url: safeUrl(this.link) })
+        try {
+            await this.ws.open()
+        } catch (error) {
+            log('error', 'websocket open failed', { url: safeUrl(this.link), error: error && error.message })
+            throw error
+        }
+        log('info', 'websocket open', { url: safeUrl(this.link) })
         if (this.keepAlive) this.setKeepAlive()
     }
 

@@ -9,6 +9,8 @@ GET /api/
 ```
 Returns server API version. Response `Date` header is used for WSSE clock drift compensation.
 Supported: v1.2. Versions v1 and v1.1 are rejected.
+The client requires a 2xx status and a JSON body with `versions.latest`; anything else is an
+`ApiError` (`HTTP_ERROR` / `BAD_RESPONSE`, see `troubleshooting.md`).
 
 ### Authentication (WSSE)
 

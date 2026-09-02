@@ -4,19 +4,28 @@ Detailed API reference for each package.
 
 ## @camtrace/api
 
-**Package:** `@camtrace/api` v1.23.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
+**Package:** `@camtrace/api` v2.0.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
 
 ### Entry point
 
 ```js
-import CamtraceApi from '@camtrace/api'
-const cm = await CamtraceApi.loadApis(host, port, ssl, appVersion?)
+import CamtraceApi, { ApiError, ApiErrorCodes } from '@camtrace/api'
+const cm = await CamtraceApi.loadApis(host, port, ssl, appVersion?, { timeout? })
 ```
 
 `loadApis`:
-- `GET /api/` — rejects servers before v1.2
+- `GET /api/` — checks the HTTP status, rejects servers before v1.2
 - Computes `timeShift` from HTTP `Date` header
+- Aborts after `options.timeout` ms (default 15000); the same value is the HTTP timeout of every request of the returned `CMInterface`
 - Returns a `CMInterface` instance
+
+### Errors
+
+`loadApis()`, `simpleLogin()`, `login()` and `getCryptPass()` reject with an `ApiError`
+(`err.code`, `err.message`, `err.httpStatus`, `err.cause`). Codes: `NETWORK`, `TIMEOUT`,
+`BAD_RESPONSE`, `HTTP_ERROR`, `VERSION_TOO_OLD`, `VERSION_UNSUPPORTED`, `AUTH_FAILED`,
+`AUTH_HTTP`, `AUTH_CONFIG` — see `packages/api/README.md` and `troubleshooting.md`.
+The other endpoints reject with the raw axios error.
 
 ### CMInterface — Authentication
 
@@ -165,7 +174,7 @@ const decoder = new WebDecoder()
 
 ## @camtrace/streaming
 
-**Package:** `@camtrace/streaming` v1.0.0 | **Entry:** `packages/streaming/src/index.js`
+**Package:** `@camtrace/streaming` v1.2.0 | **Entry:** `packages/streaming/src/index.js`
 
 ### Exports
 
@@ -177,6 +186,7 @@ import {
   LivePlayer,
   PlaybackPlayer,
   setupCordovaHooks,
+  setLogHandler,
   CTRL_CONNECT_RETRY_INTERVAL
 } from '@camtrace/streaming'
 ```
@@ -190,6 +200,10 @@ All return a `SimpleService` instance with a bound CMDecoder.
 | `openLiveService(cm, streamUrl, protocol, type?, compr?)` | `CMDecoder.Live` | yes | no |
 | `openGroupLiveService(cm, ids[], protocol, compr?, w?, h?)` | `CMDecoder.Live` | yes | no |
 | `openControlService(cm)` | `CMDecoder.Control` | no | no |
+
+`openControlService` never rejects: if the control channel cannot be opened the service is
+returned unconnected (`service.ws.isOpened === false`) and the failure is reported through
+`setLogHandler`.
 | `openControlRecordService(cm, cameraId, playerIdCb)` | `CMDecoder.Record.Control` | no | yes |
 | `openVideoRecordService(cm, playerId, protocol)` | `CMDecoder.Record.Video` | yes | yes |
 
@@ -252,3 +266,11 @@ new PlaybackPlayer(cm, cameraId, { DecoderClass?, streamType? })
 ### `setupCordovaHooks(service)` (mobile apps only)
 
 Binds Cordova `pause`/`resume` events to `service.pause()`/`service.resume()`. Only needed in Cordova environments — browsers silently ignore these events by default.
+
+### `setLogHandler(fn)`
+
+Optional log sink: `fn(level, message, data)` receives the WebSocket lifecycle of every
+`SimpleService` (`websocket opening` / `open` / `closed` / `error` / `open failed`, plus the
+control channel failure) with `level` in `debug | info | warn | error`. `data.url` is the
+service URL **without** its WSSE authentication parameters. Nothing is logged until a
+handler is set; pass `null` to remove it.

@@ -1,5 +1,6 @@
 import CMDecoder     from '@camtrace/decoder'
 import SimpleService from './SimpleService'
+import { log }       from './log'
 
 // The `protocol` argument of the open*Service helpers is the value of the `_accept`
 // stream parameter: a CamTrace protocol variant (v1, v1a, v1b, v1c), NOT a MIME type.
@@ -40,7 +41,9 @@ export default {
             await service.connect()
             service.cmDecoder.wsseLogin(...Object.values(cmInterface.buildAuth()))
         } catch (err) {
-            console.log("can't connect to control channel")
+            // The control channel is optional for the streaming layer: the service is
+            // returned unconnected (check service.ws.isOpened) so the caller decides.
+            log('error', 'control channel connection failed', { error: err && err.message })
         }
         return service
     },
