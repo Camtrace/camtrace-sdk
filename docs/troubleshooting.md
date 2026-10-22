@@ -4,7 +4,7 @@
 
 ### Reading `@camtrace/api` errors
 
-`loadApis()`, `simpleLogin()`, `login()` and `getCryptPass()` reject with an `ApiError`
+`loadApis()`, `authenticate()`, `simpleLogin()`, `login()`, `basicLogin()` and `getCryptPass()` reject with an `ApiError`
 whose `code` tells the cause (`err.httpStatus` and `err.cause` carry the details):
 
 | `err.code` | Cause | What to check |
@@ -15,20 +15,25 @@ whose `code` tells the cause (`err.httpStatus` and `err.cause` carry the details
 | `HTTP_ERROR` | `GET /api/` returned a non-2xx status | Server-side error, path rewriting |
 | `VERSION_TOO_OLD` | Server API v1 / v1.1 | The server must be **v1.2 or later** |
 | `VERSION_UNSUPPORTED` | Unknown API version | Verify the host really is a CamTrace server |
-| `AUTH_FAILED` | HTTP 401 after the clock-drift retry | User name / password; see below |
+| `AUTH_FAILED` | HTTP 401 (after the clock-drift retry, with WSSE); `err.authMethod` is the method refused | User name / password; see below |
+| `AUTH_LOCKED` | HTTP 429 (server 17.1): too many failed logins for this user or from this address; the password was not checked | Wait: every login is refused the same way until the server releases its brake (no waiting time is told); do not retry in a loop |
+| `AUTH_UNAVAILABLE` | HTTP 503 (server 17.1): the password was not checked — the user's directory could not be reached, or the server's authentication service did not answer in time or failed | Directory, network or load on the server side; try again later |
 | `AUTH_HTTP` | Other HTTP status during authentication | Server logs |
-| `AUTH_CONFIG` | No WSSE salt for this user (or hashing failed) | The user must have WSSE authentication enabled on the server |
+| `AUTH_CONFIG` | No password given, no WSSE salt for this user (or hashing failed), or no method this client can use (`authenticate()`) | `err.authMethods` without `wsse`: the account requires HTTP Basic, which needs HTTPS; `err.basicWebSocket === false`: see below |
 
 ### `AUTH_FAILED` (401 Unauthorized)
 
-WSSE authentication failed. Possible causes:
-- Wrong username or password
-- The server's clock and the client's clock differ by more than a few minutes — `@camtrace/api` compensates automatically on the first request but may fail before that. Ensure both clocks are synchronized (NTP).
-- Calling `login(user, cryptpass)` with a plain-text password instead of the BCrypt hash — use `simpleLogin(user, plaintext)` or call `getCryptPass()` first.
+Authentication failed. Possible causes:
+- Wrong username or password (with HTTP Basic, `err.authMethod === 'basic'`, the refusal is never retried with WSSE)
+- The client's clock moved since the connection — `@camtrace/api` measures the offset with the server at discovery and measures it again on a 401 (one retry when it differs by more than 1 s from the offset the request was signed with). The server only accepts tokens created at most 2 s in its future and 10 s in its past, so keep both clocks synchronized (NTP). From 17.1, a refused credential also makes the server refuse every credential of that name from that address for the next 10 s, so a retry needs to wait that long. On servers that do not expose the `Date` header to the browser (CORS), no compensation is possible.
+- An account that requires HTTP Basic (e.g. an LDAP directory account), logged in with WSSE: the server lists `basic` (`err.authMethods`). With a stored `cryptpass`, ask for the password again and call `authenticate({ user, pass })`: the account may have moved to the directory, or its password changed. Over HTTP, HTTP Basic is not used: the account needs an HTTPS connection.
+- `err.basicWebSocket === false`: the server accepted HTTP Basic on the API but does not take it on WebSockets — a server older than API revision 1.2-48, or HTTPS ended by a proxy in front of the server, which then reaches it over HTTP. The password is right; the account cannot be used by this client on that server.
+- Calling `login(user, cryptpass)` with a plain-text password instead of the BCrypt hash — use `authenticate({ user, pass })` or `simpleLogin(user, plaintext)`, or call `getCryptPass()` first.
 
 ### WebSocket connection fails immediately
 
 - Verify the URL built by `buildLiveCameraUrl()` (log it before opening the WebSocket).
+- After an HTTP Basic login, open it with `new WebSocket(url, cm.webSocketProtocols())` (the `@camtrace/streaming` services do): the URL carries no credentials. A proxy in front of the server must pass the `Sec-WebSocket-Protocol` header through.
 - Confirm the server is reachable from the browser (no firewall blocking WebSocket ports).
 - If using self-signed certificates, the browser will block the connection. Accept the certificate manually by navigating to the server URL directly in the browser first.
 

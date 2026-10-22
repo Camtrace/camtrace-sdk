@@ -55,7 +55,7 @@ const pass = ref('')
 
 async function connect() {
   const cm      = await CamtraceApi.loadApis(host.value, port.value, ssl.value)
-  await cm.simpleLogin(user.value, pass.value)
+  await cm.authenticate({ user: user.value, pass: pass.value })
   const cameras = await cm.cameras()
   emit('connected', { cm, cameras })
 }

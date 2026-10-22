@@ -9,9 +9,10 @@ import CamtraceApi from '@camtrace/api'
 import { services } from '@camtrace/streaming'
 import WebDecoder from '@camtrace/web-video-decoder'
 
-// 1. Connect and authenticate
+// 1. Connect and authenticate (WSSE, or HTTP Basic when the server requires it:
+//    the services then offer the credentials as WebSocket subprotocols)
 const cm = await CamtraceApi.loadApis('192.168.1.100', 443, true)
-await cm.simpleLogin('admin', 'plaintext_password')
+await cm.authenticate({ user: 'admin', pass: 'plaintext_password' })
 
 // 2. Get cameras
 const cameras = await cm.cameras()
@@ -47,7 +48,7 @@ import { LivePlayer } from '@camtrace/streaming'
 import WebDecoder from '@camtrace/web-video-decoder'
 
 const cm = await CamtraceApi.loadApis('192.168.1.100', 443, true)
-await cm.simpleLogin('admin', 'password')
+await cm.authenticate({ user: 'admin', pass: 'password' })
 const cameras = await cm.cameras()
 
 const player = new LivePlayer(
@@ -126,21 +127,26 @@ const { cmInterface, cmUser, cmCtrl, cmCameras } = await connectToServer({
   port: 443,
   ssl: true,
   user: 'admin',
-  cryptpass: storedBcryptHash   // use cm.getCryptPass() to obtain this
+  pass: password,               // or cryptpass only: the hash of an earlier WSSE login
 }, { appVersion: '1.0.0' })
 ```
 
-Returns `{ cmInterface, cmUser, cmCtrl, cmCameras }`.
+Returns `{ cmInterface, cmUser, cmCtrl, cmCameras }`. The login goes through
+`cmInterface.authenticate()`: with `pass`, the method follows the server (WSSE, or HTTP Basic
+for the accounts that require it); with `cryptpass` only, WSSE. `cmUser.method` tells which:
+keep `cmUser.cryptpass` after `'wsse'`, the password after `'basic'`.
 
 ### `services`
 
-Low-level WebSocket service factories. All return a `SimpleService` instance.
+Low-level WebSocket service factories. All return a `SimpleService` instance, opened with
+`cm.webSocketProtocols()` as subprotocols (the HTTP Basic credentials after an HTTP Basic login,
+none with WSSE).
 
 | Method | Description |
 |--------|-------------|
 | `openLiveService(cm, streamUrl, protocol, type?, compr?)` | Binary live stream |
 | `openGroupLiveService(cm, cameraIds[], protocol, compr?, w?, h?)` | Binary mosaic stream |
-| `openControlService(cm)` | Text server control channel |
+| `openControlService(cm)` | Text server control channel. The login line is sent on every open; with WSSE, a `nologin` answer (token refused, e.g. a clock that moved) makes it read the server clock again and, when the offset moved, send the line once more 11 s later (from 17.1 the server refuses every credential of a name from an address for 10 s after a refused one). With HTTP Basic the opening authenticates the channel: the historic login line only reads the verdict, and `nologin` (password changed, directory unreachable) is not retried |
 | `openControlRecordService(cm, cameraId, playerIdCb)` | Text record control channel |
 | `openVideoRecordService(cm, playerId, protocol)` | Binary record video channel |
 
@@ -149,6 +155,18 @@ Low-level WebSocket service factories. All return a `SimpleService` instance.
 Underlying class used by all services. Wraps `websocket-as-promised` with CMDecoder binding, keep-alive pings (30s), and automatic reconnect hooks.
 
 ```js
+new SimpleService(linkCb, decoder, binary?, keepAlive?, { onOpenFailed?, onOpen?, beforeResume?, protocols? })
+// linkCb: async () => url, called at every connect() (fresh WSSE token)
+// protocols(): the WebSocket subprotocols, read at every connect() with the link; undefined =
+// none. The open*Service helpers pass () => cm.webSocketProtocols(). Never logged.
+// onOpenFailed(error): called when the WebSocket could not be opened, or was closed by the
+// server before its first message (a server may accept the upgrade, then drop a refused
+// token). The open*Service helpers pass () => cm.noteStreamFailure(), so the next URL is
+// dated with the server clock read again (a refused WSSE token gives JavaScript no status).
+// onOpen(): called after every successful open (connect, resume, reconnection).
+// beforeResume(): called when resume() starts, before the new link is built. The
+// open*Service helpers pass () => cm.noteResume(): the device clock may have been set
+// while the app was in the background.
 service.connect()
 service.pause()               // mute close, close WS (Cordova background)
 service.resume()              // reopen WS
@@ -156,7 +174,12 @@ service.close()               // close with close event
 service.forceSilentClose()    // close silently, no event
 service.cmDecoder             // the bound CMDecoder instance
 service.on('close', handler)
+service.opened                // read-only, reset on every open: the socket opened
+service.received              //   a message arrived since then
+service.closingLocally        //   close() was called
 ```
+
+In a `'close'` handler, `opened && !received && !closingLocally` is an open the server refused (for instance a clock that moved): relaunching the stream once builds a URL dated with the server clock read again — wait 10 s first, since from 17.1 the server refuses every credential of that name from that address for 10 s after a refused one — while a stream that played and then closed is a different case.
 
 **Cordova lifecycle integration (mobile apps only):**
 ```js

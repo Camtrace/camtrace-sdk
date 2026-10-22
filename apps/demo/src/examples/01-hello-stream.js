@@ -22,9 +22,9 @@ const PASS   = 'plaintext_password'
 const CANVAS = document.getElementById('video')
 
 async function main() {
-    // 1. Connect and authenticate
+    // 1. Connect and authenticate (WSSE, or HTTP Basic when the server requires it)
     const cm = await CamtraceApi.loadApis(HOST, PORT, SSL)
-    await cm.simpleLogin(USER, PASS)
+    await cm.authenticate({ user: USER, pass: PASS })
 
     // 2. Pick the first camera, HD stream
     const cameras = await cm.cameras()
@@ -43,8 +43,9 @@ async function main() {
     CANVAS.width  = stream.width  || 1280
     CANVAS.height = stream.height || 720
 
-    // 5. Connect WebSocket, wire everything together
-    const ws = new WebSocket(wsUrl)
+    // 5. Connect WebSocket, wire everything together. With HTTP Basic the
+    //    credentials go in the subprotocols (undefined with WSSE).
+    const ws = new WebSocket(wsUrl, cm.webSocketProtocols())
     ws.binaryType = 'arraybuffer'
 
     ws.onmessage = e => decoder.write(Buffer.from(e.data))

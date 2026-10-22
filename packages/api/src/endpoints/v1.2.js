@@ -52,8 +52,9 @@ export default class {
     async group(id) {
         return (await this.http.get(this.prefix + "/groups/" + id)).data
     }
+    // Pre-login route, never authenticated: sent without WSSE headers (anonymous)
     async nameAuth(name) {
-        return (await this.http.get(this.prefix + "/users/" + name + "/auth")).data
+        return (await this.http.get(this.prefix + "/users/" + encodeURIComponent(name) + "/auth", { anonymous: true })).data
     }
     async login() {
         return (await this.http.get(this.prefix + "/users/login")).data

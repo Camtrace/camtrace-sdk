@@ -4,6 +4,74 @@ Notable changes to the CamTrace Integration SDK — the demo application and the
 `@camtrace/*` packages. Versions are SDK releases; package versions are given when
 they change.
 
+## 1.3.0 — 2026-10-22
+
+### Added
+- `@camtrace/api` 2.1.0 — HTTP Basic, for the accounts that require it (from 17.1, every account of an
+  LDAP directory: such a server lists `basic` first in `GET /users/{name}/auth`).
+  `CMInterface.authenticate({ user, pass, cryptpass })` picks the method: WSSE with a stored
+  `cryptpass` alone; with the password, the first method of the server's list this client can
+  use — `basic` over HTTPS when the server also takes it on WebSockets
+  (`capabilities.webSocket.basicProtocol` of `GET /users/login`, API revision 1.2-48), `wsse`
+  when a salt is given. A Basic refusal is never retried with WSSE. New methods `basicLogin()`,
+  `basicWebSocket()`, `authMethod()` and `webSocketProtocols()` (the subprotocols that carry the
+  credentials on a WebSocket after an HTTP Basic login: `['camtrace', 'camtrace-basic.<base64url>']`).
+  With HTTP Basic the service URLs carry no credentials and no clock is involved.
+- `@camtrace/api` 2.1.0 — login results carry `method` (`'wsse'` or `'basic'`) and `capabilities`;
+  refusals carry `err.authMethod` (the method refused) and, from `authenticate()`,
+  `err.authMethods` and `err.basicWebSocket = false` when the API accepted HTTP Basic but the
+  WebSockets would not (a server older than API revision 1.2-48, or HTTPS ended by a proxy in
+  front of the server).
+- `@camtrace/streaming` 1.3.0 — `SimpleService` option `protocols()`, read at every open with the
+  link; the `open*Service` helpers pass `cm.webSocketProtocols()`. With HTTP Basic the control
+  channel sends the historic login line (`legacyLogin()`, new in `@camtrace/decoder` 2.1.0) to read
+  the verdict, and a `nologin` answer is not retried. `connectToServer(server)` accepts
+  `server.pass` and logs in with `authenticate()`.
+- Demo and documentation: `authenticate()` instead of `simpleLogin()`.
+- `@camtrace/api` 2.1.0 — `err.authMethods` on `AUTH_CONFIG` and `AUTH_FAILED`: the authentication
+  methods the server offers for the user, in its order (`basic` first: the server expects HTTP
+  Basic, at least for some accounts — today those of an LDAP directory).
+- `@camtrace/api` 2.1.0 — error codes `AUTH_LOCKED` (HTTP 429) and `AUTH_UNAVAILABLE` (HTTP 503) for
+  the two refusals by which a 17.1 server says it did not check the password: too many failed
+  logins for the user or from the address, and a directory it could not reach. Both were
+  answered `401` before 17.1, which this client reported as `AUTH_FAILED`.
+- `@camtrace/api` 2.1.0 — `CMInterface.noteStreamFailure()`, `noteResume()` and `resyncClock()`:
+  after a WebSocket that could not be opened, or when the app is back from the background
+  (where the device clock may have been set), the next URL builder call reads the server clock
+  again. `resyncClock()` resolves to `{ ok, previous, timeShift, error? }`.
+- `@camtrace/streaming` 1.3.0 — `SimpleService` takes an optional fifth argument
+  `{ onOpenFailed, onOpen, beforeResume }`. `onOpenFailed` is called when the socket could not
+  be opened or was closed by the server before its first message; the `open*Service` helpers
+  use it to call `noteStreamFailure()`. `onOpen` is called after every successful open.
+  `beforeResume` is called when `resume()` starts; the helpers use it to call `noteResume()`,
+  so a stream reopened after the background carries a token the server accepts. Read-only state
+  `opened`, `received` and `closingLocally`, reset on every open, lets a `'close'` handler tell
+  an open refused by the server from a stream that played.
+
+### Changed
+- `@camtrace/streaming` 1.3.0 — `connectToServer(server)`: a `server` that carries both `pass` and
+  `cryptpass` now logs in with the password (`authenticate()`, the method follows the server);
+  with `cryptpass` alone, WSSE as before.
+- `@camtrace/api` 2.1.0 — `AUTH_UNAVAILABLE` (HTTP 503) also stands for a server whose authentication
+  service did not answer in time or failed (server API revisions 1.2-53 and 1.2-54): the
+  password was not checked, as for an unreachable directory; its message no longer names the
+  directory alone.
+
+### Fixed
+- `@camtrace/api` 2.1.0 — clock drift: a 401 is retried once when the offset read from its `Date`
+  header differs by more than 1 s from the offset the request was signed with (was 5 s from
+  the last measure, while the server refuses a token more than 2 s in its future; requests in
+  flight when the offset was corrected were not retried), never more than once, and never
+  when the `Date` header cannot be read (the offset could be reset to 0).
+- `@camtrace/api` 2.1.0 — `GET /users/{name}/auth`: the user name is URL-encoded, and the request
+  is sent without WSSE headers.
+- `@camtrace/streaming` 1.3.0 — control channel: the login line was only sent on the first open,
+  and its answer was never read. A session whose token was refused (a clock that moved since
+  discovery) stayed open but unauthenticated, without any event. The line is now sent on every
+  open (reconnections, resume). A `nologin` answer makes the service read the server clock
+  again and, when the offset moved, send the line once more 11 s later: from 17.1 the server
+  refuses every credential of a name from an address for 10 s after a refused one.
+
 ## 1.2.0 — 2026-09-02
 
 ### Breaking

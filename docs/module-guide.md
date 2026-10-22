@@ -4,7 +4,7 @@ Detailed API reference for each package.
 
 ## @camtrace/api
 
-**Package:** `@camtrace/api` v2.0.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
+**Package:** `@camtrace/api` v2.1.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
 
 ### Entry point
 
@@ -21,10 +21,11 @@ const cm = await CamtraceApi.loadApis(host, port, ssl, appVersion?, { timeout? }
 
 ### Errors
 
-`loadApis()`, `simpleLogin()`, `login()` and `getCryptPass()` reject with an `ApiError`
-(`err.code`, `err.message`, `err.httpStatus`, `err.cause`). Codes: `NETWORK`, `TIMEOUT`,
+`loadApis()`, `authenticate()`, `simpleLogin()`, `login()`, `basicLogin()` and `getCryptPass()`
+reject with an `ApiError` (`err.code`, `err.message`, `err.httpStatus`, `err.cause`; on
+authentication refusals `err.authMethod`, `err.authMethods`, `err.basicWebSocket`). Codes: `NETWORK`, `TIMEOUT`,
 `BAD_RESPONSE`, `HTTP_ERROR`, `VERSION_TOO_OLD`, `VERSION_UNSUPPORTED`, `AUTH_FAILED`,
-`AUTH_HTTP`, `AUTH_CONFIG` — see `packages/api/README.md` and `troubleshooting.md`.
+`AUTH_LOCKED`, `AUTH_UNAVAILABLE`, `AUTH_HTTP`, `AUTH_CONFIG` — see `packages/api/README.md` and `troubleshooting.md`.
 The other endpoints reject with the raw axios error.
 
 ### CMInterface — Authentication
@@ -32,8 +33,13 @@ The other endpoints reject with the raw axios error.
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `loadApis` | `(host, port, ssl, appVersion?)` → `CMInterface` | Static factory |
-| `simpleLogin` | `(user, plaintext)` → `{ services, permissions }` | Hash + login |
-| `login` | `(user, cryptpass)` → `{ services, permissions }` | Login with stored hash |
+| `authenticate` | `({ user, pass?, cryptpass? })` → `{ method, cryptpass?, services, permissions, capabilities }` | WSSE, or HTTP Basic when the server requires it (keep `cryptpass` after `'wsse'`, the password after `'basic'`) |
+| `simpleLogin` | `(user, plaintext)` → `{ method: 'wsse', cryptpass, services, permissions, capabilities }` | Hash + WSSE login |
+| `login` | `(user, cryptpass)` → same | WSSE login with stored hash |
+| `basicLogin` | `(user, plaintext)` → `{ method: 'basic', services, permissions, capabilities }` | HTTP Basic login |
+| `basicWebSocket` | `()` → `boolean` | The server takes HTTP Basic on the WebSockets of this login |
+| `authMethod` | `()` → `'wsse' \| 'basic'` | Method of the last login |
+| `webSocketProtocols` | `()` → `string[] \| undefined` | Subprotocols for the service WebSockets (HTTP Basic credentials; `undefined` with WSSE) |
 | `getCryptPass` | `(user, plaintext)` → `string` | BCrypt hash only |
 | `buildAuth` | `()` → `{ username, digest, nonce, date }` | Current WSSE token |
 
@@ -71,7 +77,7 @@ The other endpoints reject with the raw axios error.
 
 ## @camtrace/decoder
 
-**Package:** `@camtrace/decoder` v2.0.0 | **Build:** `packages/decoder/build/build.js` (UMD, also Node.js)
+**Package:** `@camtrace/decoder` v2.1.0 | **Build:** `packages/decoder/build/build.js` (UMD, also Node.js)
 
 ### Exports
 
@@ -117,6 +123,7 @@ Feed via `write(buffer: Buffer)`. Send commands via the dedicated methods — co
 | Method | Sends |
 |--------|-------|
 | `wsseLogin(user, digest, nonce, created)` | `login wsse …` |
+| `legacyLogin(user)` | `login <user> -` (historic line: on a channel its opening authenticated, e.g. HTTP Basic, the server answers `OK` or `nologin`) |
 | `forceRecord(cameraId, force)` | `force [+\|-]<id>` |
 | `ackAlarm(cameraId)` | `acquit <id>` |
 | `ptzPreset(cameraId, presetId)` | `ptzd preset <id> <preset>` |
@@ -174,7 +181,7 @@ const decoder = new WebDecoder()
 
 ## @camtrace/streaming
 
-**Package:** `@camtrace/streaming` v1.2.0 | **Entry:** `packages/streaming/src/index.js`
+**Package:** `@camtrace/streaming` v1.3.0 | **Entry:** `packages/streaming/src/index.js`
 
 ### Exports
 
@@ -212,7 +219,8 @@ returned unconnected (`service.ws.isOpened === false`) and the failure is report
 ```js
 const { cmInterface, cmUser, cmCtrl, cmCameras } = await connectToServer({
   host, port, ssl, user,
-  cryptpass   // BCrypt hash — use cm.getCryptPass() to obtain
+  pass,       // the method follows the server (cmInterface.authenticate()), cmUser.method tells which
+  cryptpass   // or the BCrypt hash of an earlier WSSE login alone: WSSE
 }, { appVersion? })
 ```
 
@@ -272,5 +280,6 @@ Binds Cordova `pause`/`resume` events to `service.pause()`/`service.resume()`. O
 Optional log sink: `fn(level, message, data)` receives the WebSocket lifecycle of every
 `SimpleService` (`websocket opening` / `open` / `closed` / `error` / `open failed`, plus the
 control channel failure) with `level` in `debug | info | warn | error`. `data.url` is the
-service URL **without** its WSSE authentication parameters. Nothing is logged until a
+service URL **without** its WSSE authentication parameters; the subprotocols (HTTP Basic
+credentials) are never passed. Nothing is logged until a
 handler is set; pass `null` to remove it.

@@ -1,10 +1,18 @@
 export default {
     async buildServiceUrl(serviceName, args={}, override={}) {
+        // after a WebSocket failure (noteStreamFailure): the token is dated with a fresh offset.
+        // HTTP Basic dates nothing.
+        if (this.clockSuspect && !this.basic) await this.resyncClock()
         let service = {...this.currentLoginInfos.services[serviceName], ...override};
-        let finalArgs = this.addAuth(args)
+        // HTTP Basic: the credentials go in the subprotocols (webSocketProtocols()), none in the
+        // URL (the server refuses WSSE parameters beside them)
+        let finalArgs = this.basic ? { ...args } : this.addAuth(args)
         if (this.mobile) {
             finalArgs._mobile = this.mobile
         }
+        // Values are NOT URL-encoded, on purpose: haproxy copies _username/_password/_nonce/
+        // _created_at verbatim into the X-WSSE header, and only recent scamd versions also
+        // accept the decoded form. Encoding the base64 digest ('+', '/', '=') breaks the rest.
         let strArgs = Object.keys(finalArgs).map(key => key + "=" + (finalArgs[key])).join("&")
         return service.scheme + "://" + this.host + ((parseInt(service.port) != 0) ? (":" + service.port) : (":" + this.port)) + service.url + (service.url.indexOf("?") >= 0 ? "&" : "?") + strArgs
     },

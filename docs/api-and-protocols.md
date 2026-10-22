@@ -12,6 +12,16 @@ Supported: v1.2. Versions v1 and v1.1 are rejected.
 The client requires a 2xx status and a JSON body with `versions.latest`; anything else is an
 `ApiError` (`HTTP_ERROR` / `BAD_RESPONSE`, see `troubleshooting.md`).
 
+### Choosing the method
+
+`GET /api/v1.2/users/{username}/auth` (no auth) lists the methods offered for the user, in the
+server's order: `{ auth: [{ type: "basic" }, { type: "wsse", salt: "$2a$…" }] }`. A server with
+an LDAP directory (17.1) lists `basic` first for every user: its directory accounts can only use
+HTTP Basic, its local accounts can still use WSSE. `cm.authenticate({ user, pass, cryptpass })`
+uses WSSE with a stored `cryptpass` alone; with the password, the first method it can use in
+that order — `basic` over HTTPS when `GET /users/login` announces
+`capabilities.webSocket.basicProtocol: true` (API revision 1.2-48), `wsse` when a salt is given.
+
 ### Authentication (WSSE)
 
 HTTP API requests use headers:
@@ -38,18 +48,39 @@ WebSocket service URLs use equivalent query parameters: `_username`, `_password`
 ```
 
 **Clock drift handling:**
-- `timeShift = serverDate − localDate` (from HTTP `Date` header on first request)
-- On 401: recalculate from response `Date`, retry once
+- `timeShift = localDate − serverDate` (from the HTTP `Date` header of the discovery request)
+- The server refuses a token created more than 2 s in its future or more than 10 s in its past
+- On 401: recalculate from the response `Date`; retry once when the offset differs by more than 1 s from the one the request was signed with
+- After a WebSocket that could not be opened (`noteStreamFailure()`) or a return from the background (`noteResume()`): the next service URL is built after reading the server clock again (`resyncClock()`)
+- From 17.1, after a refused credential the server refuses every credential of that name from that address for 10 s: a retry sent sooner is refused whatever it carries
+
+### Authentication (HTTP Basic)
+
+HTTP API requests carry `Authorization: Basic <Base64 of user:password in UTF-8>`. The server
+checks a user and password once a minute, whatever the number of requests and WebSockets
+carrying them; no clock is involved.
+
+A page cannot set `Authorization` on a WebSocket: it offers the credentials as subprotocols,
+over HTTPS only (API revision 1.2-48):
+```js
+new WebSocket(url, ['camtrace', 'camtrace-basic.' + base64url('user:password')])
+// base64url: '-' and '_', no '=' padding — exactly these two entries, in this order
+// the server answers Sec-WebSocket-Protocol: camtrace
+```
+`url` keeps its viewer parameters (`_mobile`, `_accept`) and carries no WSSE parameter: any
+other shape is refused with `400`. A refused WebSocket gives JavaScript no status; with a wrong
+password the stream socket opens then closes without data, and the control channel answers
+`nologin`. `cm.webSocketProtocols()` returns the list after an HTTP Basic login.
 
 ### Endpoint reference
 
-All paths prefixed with `/api/v1.2`. All require WSSE authentication.
+All paths prefixed with `/api/v1.2`. All require authentication (WSSE or HTTP Basic).
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Version discovery (no auth) |
-| GET | `/users/{username}/auth` | Get BCrypt salt (no auth) |
-| GET | `/users/login` | Login → services + permissions |
+| GET | `/users/{username}/auth` | Authentication methods offered, WSSE salt (no auth) |
+| GET | `/users/login` | Login → services, permissions, capabilities |
 | GET | `/cameras` | Camera list with stream info |
 | GET | `/cameras/{id}` | Camera detail |
 | GET | `/cameras/{id}/ref.jpg` | Camera thumbnail (Blob) |
@@ -85,12 +116,15 @@ Pass `stream.url` to `cm.buildLiveCameraUrl()`.
 
 ### Service URL construction
 
-WebSocket URLs are built from the `/users/login` response plus WSSE auth as query params:
+WebSocket URLs are built from the `/users/login` response; with WSSE they carry the
+credentials as query params:
 ```
 wss://host:port/path?_username=…&_password=…&_nonce=…&_created_at=…[&extra_params]
 ```
+With HTTP Basic they carry none: the credentials go in the subprotocols (see above).
 
-Use `@camtrace/api` URL builders — they handle auth injection automatically.
+Use `@camtrace/api` URL builders, opened with `cm.webSocketProtocols()` — the
+`@camtrace/streaming` services do both.
 
 ### Control channel (text, newline-delimited)
 
@@ -101,6 +135,8 @@ Use `@camtrace/api` URL builders — they handle auth injection automatically.
 Client → Server: "login wsse <username> <digest> <nonce> <created_at>"
 Server → Client: "login <status>"
 ```
+With HTTP Basic the opening already authenticated the channel; the historic line
+`login <username> -` (user and digest ignored) only reads the verdict: `OK`, or `nologin`.
 
 **Commands (client → server):**
 ```

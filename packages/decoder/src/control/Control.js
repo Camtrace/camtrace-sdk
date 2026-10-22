@@ -8,6 +8,11 @@ export default class extends CMStringDecoder {
   wsseLogin(username, digest, nonce, created) {
     this.sendData("login wsse " + Object.values(arguments).join(" "))
   }
+  // Historic login line, for a channel its opening already authenticated (HTTP Basic): the
+  // server ignores its user and digest and answers OK, or nologin when the opening was refused
+  legacyLogin(username) {
+    this.sendData("login " + encodeURIComponent(username) + " -")
+  }
   forceRecord(cameraId,force) {
     this.sendData("force " + (force ? "" : "-") + cameraId)
   }

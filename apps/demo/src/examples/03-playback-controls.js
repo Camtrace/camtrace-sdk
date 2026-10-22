@@ -15,7 +15,7 @@ const CANVAS = document.getElementById('video')
 
 async function main() {
     const cm = await CamtraceApi.loadApis('192.168.1.100', 443, true)
-    await cm.simpleLogin('admin', 'plaintext_password')
+    await cm.authenticate({ user: 'admin', pass: 'plaintext_password' })
     const cameras  = await cm.cameras()
     const cam      = cameras[0]
 

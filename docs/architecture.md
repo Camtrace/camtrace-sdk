@@ -35,7 +35,7 @@ sequenceDiagram
   participant WASM  as @camtrace/web-video-decoder
   participant Srv   as CamTrace Server
 
-  App->>API: loadApis() + simpleLogin()
+  App->>API: loadApis() + authenticate()
   API->>Srv: GET /api/ + GET /users/login
   Srv-->>API: services URLs + camera list
 

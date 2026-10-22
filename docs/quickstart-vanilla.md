@@ -78,7 +78,7 @@ document.getElementById('login').addEventListener('submit', async e => {
   const pass = document.getElementById('password').value
 
   cm = await CamtraceApi.loadApis(host, port, ssl)
-  await cm.simpleLogin(user, pass)
+  await cm.authenticate({ user, pass })
 
   cameras = await cm.cameras()
 

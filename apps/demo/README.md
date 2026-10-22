@@ -23,7 +23,7 @@ Enter your CamTrace server credentials in the login form. The app will list your
 
 ## What it demonstrates
 
-- **Login** — server discovery, WSSE authentication, camera list
+- **Login** — server discovery, authentication (WSSE, or HTTP Basic when the server requires it), camera list
 - **Live stream** — H.264 decoding via WebAssembly (FFmpeg), HD/MD/LD quality selection
 - **Record playback** — dual-WebSocket control+video sequence, play/pause/backward/seek/step/speed controls
 

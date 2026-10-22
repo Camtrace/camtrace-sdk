@@ -6,7 +6,8 @@
 //   setLogHandler((level, message, data) => myLogger[level]('stream', message, data))
 //
 // level: 'debug' | 'info' | 'warn' | 'error'. `data` is a plain object; WebSocket
-// URLs are passed with their authentication query parameters already removed.
+// URLs are passed with their authentication query parameters already removed, and the
+// subprotocols (HTTP Basic credentials) are never passed.
 
 let handler = null
 
@@ -32,4 +33,11 @@ export function safeUrl(url) {
     if (i < 0) return url
     const query = url.slice(i + 1).split('&').filter(part => AUTH_PARAMS.indexOf(part.split('=')[0]) < 0)
     return url.slice(0, i) + (query.length ? '?' + query.join('&') : '')
+}
+
+// Mask the HTTP Basic subprotocol in a text before logging it (a WebSocket constructor error
+// may quote the subprotocols)
+export function safeText(text) {
+    if (typeof text !== 'string') return text
+    return text.replace(/(camtrace-basic\.)[A-Za-z0-9_-]*/gi, '$1[redacted]')
 }

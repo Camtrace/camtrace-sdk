@@ -64,7 +64,7 @@ export default function LoginView(container) {
 
         try {
             const cm = await CamtraceApi.loadApis(host, port, ssl)
-            await cm.simpleLogin(user, pass)
+            await cm.authenticate({ user, pass })
             const cameras = await cm.cameras()
 
             state.cm      = cm

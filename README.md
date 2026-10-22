@@ -13,7 +13,7 @@ CamTrace is a video management system (VMS). This SDK lets a web application aut
 | Path | Description |
 |---|---|
 | `apps/demo/` | Vanilla JS demo app (login → camera list → live → player records) |
-| `packages/api/` | CamTrace HTTP client — authentication (WSSE), camera list, session |
+| `packages/api/` | CamTrace HTTP client — authentication (WSSE, HTTP Basic), camera list, session |
 | `packages/decoder/` | CamTrace binary protocol demultiplexer — H264 NAL units, control events |
 | `packages/streaming/` | High-level facades — `LivePlayer`, `PlaybackPlayer`, WebSocket services |
 | `packages/web-video-decoder/` | Generic FFmpeg-WASM wrapper — renders H264 to canvas (replaceable with any H264 decoder) |
@@ -40,7 +40,7 @@ npm run demo       # starts the demo dev server
 - [`docs/quickstart-vue.md`](docs/quickstart-vue.md) — Vue 3 integration guide
 - [`docs/architecture.md`](docs/architecture.md) — module overview and data flow
 - [`docs/advanced-player.md`](docs/advanced-player.md) — record playback protocol and controls
-- [`docs/api-and-protocols.md`](docs/api-and-protocols.md) — WSSE authentication and WebSocket protocol reference
+- [`docs/api-and-protocols.md`](docs/api-and-protocols.md) — authentication (WSSE, HTTP Basic) and WebSocket protocol reference
 - [`docs/troubleshooting.md`](docs/troubleshooting.md) — common errors and fixes
 
 ## Notes
