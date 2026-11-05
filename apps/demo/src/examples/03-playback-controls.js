@@ -85,12 +85,15 @@ async function main() {
         ctrlService.cmDecoder.init('regul', cam.id, startTs, endTs, barSize, startTs)
         ctrlService.cmDecoder.playForward()
 
-        ctrlService.cmDecoder.on('time', pos =>
-            console.log('position:', pos))
+        // Position: the video channel's status packets ("image 0 <unixMs> …"), the control channel sends none
+        vidService.cmDecoder.on('packet', pck => {
+            if (pck.name === 'status' && String(pck.data).startsWith('image'))
+                console.log('position:', new Date(parseInt(String(pck.data).split(' ')[2])).toISOString())
+        })
 
         // Playback commands via ctrlService.cmDecoder:
         //   .playForward()   .playBackward()   .stop()
-        //   .goto(position)  .time(timestamp)
+        //   .goto(position)  .seekTime(unixMs)
         //   .freq(speed)
     })
 }

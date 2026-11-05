@@ -73,7 +73,9 @@ import CMDecoder from '@camtrace/decoder'
 
 // Open control channel
 const ctrl = new CMDecoder.Record.Control()
-await services.openControlRecordService(cm, cameraId, async (ctrlService, [playerId]) => {
+// Resolves with the control service once the callback got the player ID; rejects when the server gives no
+// player (see the table below)
+await services.openControlRecordService(cm, cameraId, async (ctrlService, playerId) => {
   // Open video channel once we have a player ID
   const vidService = await services.openVideoRecordService(cm, playerId)
   vidService.cmDecoder.on('packet', pck => decoder.sendPacket(pck, w, h, true))
@@ -81,7 +83,10 @@ await services.openControlRecordService(cm, cameraId, async (ctrlService, [playe
   // Initialize and start
   ctrlService.cmDecoder.init(barName, cameraId, startTime, endTime, barSize, currentTime)
   ctrlService.cmDecoder.playForward()
-  ctrlService.cmDecoder.on('time', ([pos]) => console.log('position:', pos))
+  // Position: the video channel's status packets ("image 0 <unixMs> …"), the control channel sends none
+  vidService.cmDecoder.on('packet', pck => {
+    if (pck.name === 'status' && String(pck.data).startsWith('image')) console.log('position (ms):', parseInt(String(pck.data).split(' ')[2]))
+  })
 })
 ```
 
@@ -147,8 +152,8 @@ none with WSSE).
 | `openLiveService(cm, streamUrl, protocol, type?, compr?)` | Binary live stream |
 | `openGroupLiveService(cm, cameraIds[], protocol, compr?, w?, h?)` | Binary mosaic stream |
 | `openControlService(cm)` | Text server control channel. The login line is sent on every open; with WSSE, a `nologin` answer (token refused, e.g. a clock that moved) makes it read the server clock again and, when the offset moved, send the line once more 11 s later (from 17.1 the server refuses every credential of a name from an address for 10 s after a refused one). With HTTP Basic the opening authenticates the channel: the historic login line only reads the verdict, and `nologin` (password changed, directory unreachable) is not retried |
-| `openControlRecordService(cm, cameraId, playerIdCb)` | Text record control channel |
-| `openVideoRecordService(cm, playerId, protocol)` | Binary record video channel |
+| `openControlRecordService(cm, cameraId, playerIdCb)` | Text record control channel. Resolves with the service once `playerIdCb(service, playerId)` was called. Rejects when the channel cannot be opened, when the server closes it before the player ID (`err.code === 'PLAYER_CLOSED'`, `err.closeCode`) — it does so at once for a camera whose records the user may not play (`playRecordsAllowed: false`), and for a refused credential — and with `'PLAYER_TIMEOUT'` when no ID came within 15 s. The service is closed for good whenever it rejects (no reopening on the Cordova `resume`) |
+| `openVideoRecordService(cm, playerId, protocol)` | Binary record video channel. Rejects when the channel cannot be opened, the service closed for good |
 
 ### `SimpleService`
 
@@ -167,10 +172,10 @@ new SimpleService(linkCb, decoder, binary?, keepAlive?, { onOpenFailed?, onOpen?
 // beforeResume(): called when resume() starts, before the new link is built. The
 // open*Service helpers pass () => cm.noteResume(): the device clock may have been set
 // while the app was in the background.
-service.connect()
-service.pause()               // mute close, close WS (Cordova background)
+service.connect()             // also sets the Cordova pause/resume listeners again after a close
+service.pause()               // mute close, stop keep-alive, close WS (Cordova background)
 service.resume()              // reopen WS
-service.close()               // close with close event
+service.close()               // close with close event; not reopened on resume
 service.forceSilentClose()    // close silently, no event
 service.cmDecoder             // the bound CMDecoder instance
 service.on('close', handler)
@@ -208,11 +213,14 @@ new PlaybackPlayer(cmInterface, cameraId, { DecoderClass?, streamType? })
 .start(barName, startTime, endTime, barSize, currentTime, { autoOpenVideo? })
   // returns Promise<this>. autoOpenVideo:true opens video before init so preview frames arrive.
   // Internally: awaits video channel, waits for server 'load' event, then sends init (no type).
+  // Rejects like openControlRecordService when the server gives no player (PLAYER_CLOSED, PLAYER_TIMEOUT):
+  // do not offer playback of a camera with playRecordsAllowed === false.
 .play()           // play forward (opens video channel if closed)
 .backward()       // play backward
 .stop()           // stop playback
 .seek(barPos)     // goto bar position (0–barSize)
-.setTime(ts)      // set position (Unix ms)
+.setTime(ts)      // set position (Unix ms): timems, or time in seconds on a server without it
+.setTime(ts, 'start')  // the keyframe of that instant's GOP alone ('nearest': the nearest one), where the server lists keyseek
 .setSpeed(freq)   // set playback frequency
 .stepForward()    // play next frame — use only when stopped
 .stepBackward()   // play prev frame — use only when stopped
@@ -255,11 +263,18 @@ a handler is set.
 ```
 connect()
   └─ ws.open()
+       ├─ Cordova pause/resume listeners set
        └─ keepAlive ping every 30s (if no traffic)
-            └─ ws.close event
-                  └─ emit 'close'
-                       └─ app reconnects after CTRL_CONNECT_RETRY_INTERVAL
+            ├─ Cordova 'pause' → pause(): close muted, ws closed
+            │     └─ Cordova 'resume' → resume(): beforeResume(), connect()
+            └─ ws.close event (server, network, close())
+                  └─ listeners removed, emit 'close'
+                       └─ app reconnects after CTRL_CONNECT_RETRY_INTERVAL (connect() on the same service)
 ```
+
+The listeners follow the service: a service reconnected with `connect()` after a close goes
+back to closing in the background and reopening on return; a service that is not reconnected
+never reopens on its own.
 
 ## Dependencies
 

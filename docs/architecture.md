@@ -73,10 +73,15 @@ stateDiagram-v2
   [*]        --> Connecting : connect()
   Connecting --> Open       : ws opened
   Open       --> Open       : keepAlive ping (30s, if idle)
-  Open       --> Closed     : server closes / network error
+  Open       --> Paused     : Cordova pause (close muted)
+  Paused     --> Connecting : Cordova resume
+  Open       --> Closed     : server closes / network error / close()
   Closed     --> Connecting : app reconnects (5s default)
   Open       --> [*]        : forceSilentClose()
 ```
+
+A closed service does not follow the Cordova lifecycle until it is reconnected: `connect()`
+sets its pause/resume listeners again.
 
 `SimpleService` (from `@camtrace/streaming`) manages this lifecycle automatically.
 

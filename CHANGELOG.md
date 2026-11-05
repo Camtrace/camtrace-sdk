@@ -4,6 +4,76 @@ Notable changes to the CamTrace Integration SDK — the demo application and the
 `@camtrace/*` packages. Versions are SDK releases; package versions are given when
 they change.
 
+## 1.4.0 — 2026-11-05
+
+### Added
+- `@camtrace/decoder` 2.2.0 — `CMDecoder.Record.Control`: `timems(ms)` (Unix milliseconds) and `seekTime(ms)`, which
+  sends `timems` when the server lists it in its `capabilities` line and `time` in seconds otherwise; the words of
+  that line are kept in `ctrl.capabilities` and emitted as `'capabilities'`.
+- `@camtrace/decoder` 2.2.0 — `CMDecoder.Record.Control`: `goto`, `time`, `timems` and `seekTime` take an optional `key`
+  (`'start'` or `'nearest'`): the server sends one picture, the keyframe opening the position's group of pictures
+  or the nearest keyframe, instead of the group up to the position — several times the images per second while a
+  cursor is dragged. `seekTime(ms, key)` sends it only to a server that lists `keyseek` in its `capabilities`
+  line, and an exact seek to the others. `@camtrace/streaming` 1.4.0 — `PlaybackPlayer.seek(pos, key)` and
+  `setTime(ts, key)` likewise.
+- `@camtrace/api` 2.2.0 — `ApiErrorCodes.CERTIFICATE`: in Node, a request whose server certificate is refused (self-signed,
+  unknown authority, expired, not issued for the host or IP) rejects with this code, the TLS code in the message
+  (`DEPTH_ZERO_SELF_SIGNED_CERT`, `ERR_TLS_CERT_ALTNAME_INVALID`…); it was `NETWORK`. Browsers do not tell why a
+  request failed: there it stays `NETWORK`.
+- `@camtrace/api` 2.2.0 — the errors of `loadApis()` carry `err.url`, the discovery URL: in a browser, the page to open to
+  accept a self-signed certificate.
+- Demo — when the discovery fails over HTTPS, the login page shows the discovery URL to open in a new tab and accept the
+  server's certificate (a fresh CT-Server 17.1 uses a self-signed one), tries again every 2 s and connects once it is
+  accepted, without a reload. Over HTTP, it says that a CT-Server 17.1 or later only answers over HTTPS.
+- Documentation — troubleshooting: "Self-signed certificate (CT-Server 17.1)" (browsers, a certificate trusted by the
+  system, `NODE_EXTRA_CA_CERTS` in Node, HTTP redirected to HTTPS).
+
+### Changed
+- Security reports by email now go to security@camtrace.com (was dev@camtrace.com): `SECURITY.md`,
+  `CONTRIBUTING.md`. GitHub private vulnerability reporting is unchanged.
+- Demo — the login form connects over HTTPS on port 443 by default (it was HTTP on port 80); ticking or unticking
+  HTTPS / WSS switches the port between 443 and 80 while it is the other one's default.
+- `@camtrace/streaming` 1.4.0 — `services.openControlRecordService` resolves with the record control service once the
+  server gave a player (after `playerIdCb` was called), and rejects when it gives none: a channel that cannot be
+  opened, a channel closed before the player id (`err.code === 'PLAYER_CLOSED'`, `err.closeCode`) — the server
+  closes it at once for a camera whose records the user may not play (`playRecordsAllowed: false` in
+  `GET /cameras`), and for a refused credential — or no id within 15 s (`'PLAYER_TIMEOUT'`, the service is
+  closed). It used to resolve with nothing right after asking for the player, and a camera without the right left
+  the caller waiting for an id that never came. `PlaybackPlayer.start()` rejects likewise; it used to resolve and
+  then emit neither `ready` nor `close`.
+
+### Fixed
+- `@camtrace/decoder` 2.2.0 — record control commands could be dropped by the server: each WebSocket message carried a
+  trailing `\0`, the server adds its own, and it stops reading at an empty command, so a command read together
+  with the previous one was lost. A 150 ms queue between commands hid it. `CMDecoder.Record.Control` now sends
+  each command at once, without the trailing `\0`. `CMDecoder.Control` (server control channel) is unchanged.
+- `@camtrace/streaming` 1.4.0 — `PlaybackPlayer.setTime(ts)`, documented in Unix milliseconds, sent `time <ms>`, which the
+  server rejects (it expects seconds). It now uses `seekTime()`.
+- `@camtrace/streaming` 1.4.0 — `SimpleService` lost its Cordova `pause`/`resume` listeners on any close
+  (server close, network drop) and `connect()` did not set them again: a service reconnected on
+  the same object, such as the control channel after a drop, then stayed open in the background
+  and was not reopened on return. Every successful `connect()` now sets them again. `close()`
+  removes them, so a service closed while paused is no longer reopened on return.
+- `@camtrace/streaming` 1.4.0 — `SimpleService.pause()` left the keep-alive interval running: on a service
+  with keep-alive (record playback), it sent on the closed socket every 30 s ("Can't send data
+  because WebSocket is not opened."), and `resume()` started a second one beside it, which kept
+  running after the close. `pause()` now stops it, and a service never runs more than one.
+- `@camtrace/streaming` 1.4.0 — a record channel whose opening failed kept its Cordova `pause`/`resume` listeners. When
+  the app went to the background during the opening, the pause cut it short and `openControlRecordService` or
+  `openVideoRecordService` rejected, but the service, which the caller never got, was reopened on every later
+  return from the background until the app was closed, with a new credential each time.
+  `openControlRecordService` now closes its service for good whenever it rejects (it did only for
+  `'PLAYER_TIMEOUT'`), and `openVideoRecordService` when its channel cannot be opened. `PlaybackPlayer.start()`
+  benefits too.
+- `@camtrace/streaming` README: the record playback example destructured the player id (`[playerId]`), which
+  took its first character only.
+- Record playback documentation (`docs/api-and-protocols.md`, `docs/advanced-player.md`, `docs/module-guide.md`,
+  package READMEs, demo example 03): the channels are `/player/control` and `/player/video` (not `/record/…`); the
+  control channel sends no `time`, `step` or `play` line — the examples that listened to `time` there now read the
+  position from the video channel's `status` packets; the command set is completed (`capabilities`, `timems`,
+  `autojump` / `automove`, `freq` = speed × 1000, `goto` up to `barSize - 1`), with the window that bounds playback,
+  exact seeks and their zero-timestamp frames, and what `step <n>` does.
+
 ## 1.3.0 — 2026-10-22
 
 ### Added

@@ -9,7 +9,8 @@ whose `code` tells the cause (`err.httpStatus` and `err.cause` carry the details
 
 | `err.code` | Cause | What to check |
 |---|---|---|
-| `NETWORK` | DNS, connection refused, TLS error, offline — or a server without CORS headers (the browser hides the answer) | Host / port / SSL, firewall, certificate, CORS on the server |
+| `NETWORK` | DNS, connection refused, TLS error, offline — or a server without CORS headers (the browser hides the answer). In a browser, also a refused certificate: browsers do not tell why a request failed | Host / port / SSL, firewall, CORS on the server; over HTTPS the certificate, see [Self-signed certificate](#self-signed-certificate-ct-server-171) |
+| `CERTIFICATE` | Node only: the server's certificate was refused — self-signed, unknown authority, expired, or not issued for this host or IP (the TLS code is in `err.message`) | See [Self-signed certificate](#self-signed-certificate-ct-server-171) |
 | `TIMEOUT` | No answer within 15 s (`loadApis(…, { timeout })` to change it), or a network failure after 10 s or more | Filtered IP, captive portal, VPN |
 | `BAD_RESPONSE` | `GET /api/` returned something that is not the discovery JSON | Wrong port (another web server answers), reverse proxy, captive portal |
 | `HTTP_ERROR` | `GET /api/` returned a non-2xx status | Server-side error, path rewriting |
@@ -20,6 +21,34 @@ whose `code` tells the cause (`err.httpStatus` and `err.cause` carry the details
 | `AUTH_UNAVAILABLE` | HTTP 503 (server 17.1): the password was not checked — the user's directory could not be reached, or the server's authentication service did not answer in time or failed | Directory, network or load on the server side; try again later |
 | `AUTH_HTTP` | Other HTTP status during authentication | Server logs |
 | `AUTH_CONFIG` | No password given, no WSSE salt for this user (or hashing failed), or no method this client can use (`authenticate()`) | `err.authMethods` without `wsse`: the account requires HTTP Basic, which needs HTTPS; `err.basicWebSocket === false`: see below |
+
+### Self-signed certificate (CT-Server 17.1)
+
+From 17.1 a CT-Server only answers over HTTPS (HTTP is redirected to it), and a fresh install uses a
+self-signed certificate. It names the server's host name, `localhost` and its IP addresses, and the server
+makes a new one when they change. Neither a browser nor Node trusts it: the first request, the discovery
+(`loadApis()`), fails before reaching the server. Every error of `loadApis()` carries the discovery URL in
+`err.url` (e.g. `https://192.168.1.100:443/api/`).
+
+- **In a browser**, the request fails like an unreachable server: `NETWORK`, with the browser's own text
+  (Chrome `Failed to fetch`, Firefox `NetworkError when attempting to fetch resource.`, Safari `Load failed`).
+  Open `err.url` in the same browser and accept the warning (Chrome: *Advanced → Proceed*; Firefox:
+  *Advanced → Accept the Risk and Continue*; Safari: *Show Details → visit this website*): the page then shows
+  the API versions. The API and the WebSockets use the same host and port, so this one acceptance covers both,
+  and the page that failed needs no reload: call `loadApis()` again. The demo does so — it shows the link and
+  tries the discovery again every 2 s. How long the acceptance lasts depends on the browser (Firefox keeps it
+  until it is removed under *Settings → Privacy & Security → Certificates → View Certificates → Servers*).
+- **For a lasting setup**, trust the server's certificate in the operating system (macOS Keychain, Windows
+  certificate store; Firefox has its own store). Its names include the IP addresses, so connecting by IP works.
+  Do it again when the server makes a new certificate (new host name or IP). To save it:
+  `openssl s_client -connect <host>:443 </dev/null | openssl x509 > ct-server.pem`.
+- **In Node**, the error is `CERTIFICATE`, its message carries the TLS code (`DEPTH_ZERO_SELF_SIGNED_CERT`,
+  `ERR_TLS_CERT_ALTNAME_INVALID`…). Start Node with `NODE_EXTRA_CA_CERTS=ct-server.pem`: `fetch`, the HTTP
+  requests and the `ws` WebSockets then accept that certificate. Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0`, which
+  accepts any certificate for the whole process.
+- **Over HTTP**, the discovery is redirected to HTTPS: it then fails on the certificate (`NETWORK`), or it
+  succeeds and the login fails — e.g. `AUTH_CONFIG` with `err.authMethods` `['basic']`, HTTP Basic being only
+  used over HTTPS. Connect with `ssl = true` on port 443.
 
 ### `AUTH_FAILED` (401 Unauthorized)
 
@@ -35,7 +64,7 @@ Authentication failed. Possible causes:
 - Verify the URL built by `buildLiveCameraUrl()` (log it before opening the WebSocket).
 - After an HTTP Basic login, open it with `new WebSocket(url, cm.webSocketProtocols())` (the `@camtrace/streaming` services do): the URL carries no credentials. A proxy in front of the server must pass the `Sec-WebSocket-Protocol` header through.
 - Confirm the server is reachable from the browser (no firewall blocking WebSocket ports).
-- If using self-signed certificates, the browser will block the connection. Accept the certificate manually by navigating to the server URL directly in the browser first.
+- With a self-signed certificate, the browser refuses the WebSockets as it refuses the discovery: accept it first, see [Self-signed certificate](#self-signed-certificate-ct-server-171).
 
 ---
 

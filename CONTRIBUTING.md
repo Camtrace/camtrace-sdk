@@ -40,4 +40,4 @@ server (v1.2 API) to test against.
 ## Reporting security issues
 
 Please do not open public issues for security problems. Contact
-[dev@camtrace.com](mailto:dev@camtrace.com) directly.
+[security@camtrace.com](mailto:security@camtrace.com) directly (see `SECURITY.md`).

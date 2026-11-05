@@ -17,6 +17,8 @@ export default class SimpleService extends EventEmitter {
     // Read-only state, reset on every open: `opened`, `received` (a message arrived),
     // `closingLocally` (close() was called); a 'close' listener can tell a refused open
     // (opened, nothing received, not closed locally) from a stream that played.
+    // Cordova pause/resume listeners: set at construction and by every successful connect(),
+    // removed by any close except pause(); a service closed for good never reopens on resume.
     constructor(linkCb, decoder, binary = false, keepAlive = false, options = {}) {
         super()
         this.linkCb = linkCb
@@ -63,8 +65,6 @@ export default class SimpleService extends EventEmitter {
             log('warn', 'websocket error', { url: safeUrl(this.link) })
             this.emit('error', e)
         })
-        this.pauseCb = () => {}
-        this.resumeCb = () => {}
         // Register Cordova pause/resume events if the document is available.
         // These events are never fired in a plain browser, so this is harmless
         // in non-Cordova environments. Use setLifecycleHooks() to override.
@@ -72,9 +72,16 @@ export default class SimpleService extends EventEmitter {
     }
 
     _initDefaultLifecycle() {
+        this.pauseCb  = () => this.pause()
+        this.resumeCb = () => this.resume()
+        this._bindLifecycle()
+    }
+
+    // Idempotent: the DOM ignores a listener that is already registered
+    _bindLifecycle() {
         if (typeof document !== 'undefined') {
-            document.addEventListener('pause',  (this.pauseCb  = () => this.pause()))
-            document.addEventListener('resume', (this.resumeCb = () => this.resume()))
+            document.addEventListener('pause',  this.pauseCb)
+            document.addEventListener('resume', this.resumeCb)
         }
     }
 
@@ -90,10 +97,7 @@ export default class SimpleService extends EventEmitter {
         this._cleanLifecycle()
         this.pauseCb  = onPause  || (() => {})
         this.resumeCb = onResume || (() => {})
-        if (typeof document !== 'undefined') {
-            document.addEventListener('pause',  this.pauseCb)
-            document.addEventListener('resume', this.resumeCb)
-        }
+        this._bindLifecycle()
     }
 
     async genLink() {
@@ -101,7 +105,9 @@ export default class SimpleService extends EventEmitter {
         this.protocols = this.protocolsCb ? this.protocolsCb() : undefined
     }
 
+    // One interval per service, even when connect() runs again on an open socket
     setKeepAlive() {
+        this.clearKeepAlive()
         this.keepAliveIt = setInterval(() => {
             if (!this.keepAliveFlag) {
                 if (this.binary) this.ws.send(new Uint8Array([0]))
@@ -133,12 +139,18 @@ export default class SimpleService extends EventEmitter {
         }
         log('info', 'websocket open', { url: safeUrl(this.link) })
         this.opened = true
+        // A close removed the listeners: a service reconnected on the same object (the control
+        // channel) follows the background again
+        this._bindLifecycle()
         if (this.keepAlive) this.setKeepAlive()
         if (this.onOpen) this.onOpen()
     }
 
     async pause() {
         this.ws.onClose.mute()
+        // onClose muted: its clearKeepAlive() does not run, and the interval would send on the
+        // closed socket every 30 s, then run beside the one resume() starts
+        this.clearKeepAlive()
         await this.ws.close()
     }
 
@@ -150,6 +162,8 @@ export default class SimpleService extends EventEmitter {
 
     async close() {
         this.closingLocally = true
+        // Closed while paused (onClose muted): the next resume must not reopen it
+        this._cleanLifecycle()
         await this.ws.close()
     }
 

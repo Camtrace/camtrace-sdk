@@ -10,11 +10,11 @@ sequenceDiagram
   participant CtrlWS as Control WS
   participant VidWS  as Video WS
 
-  App->>CtrlWS: connect (wss://…/record/control?id=cameraId)
+  App->>CtrlWS: connect (wss://…/player/control?id=cameraId)
   App->>CtrlWS: "CTL" (create player)
   CtrlWS-->>App: "id <playerId>"
 
-  App->>VidWS: connect (wss://…/record/video?id=playerId)
+  App->>VidWS: connect (wss://…/player/video?id=playerId)
   CtrlWS-->>App: "load <data>" (readiness signal — wait for it)
 
   App->>CtrlWS: "init regul cameraId startSec endSec barSize currentMs"
@@ -66,8 +66,8 @@ player.on('ready', () => {
 })
 
 player.on('time', posSec => {
-  // Current position in Unix seconds (from video-channel status packets
-  // and control-channel time events)
+  // Current position in Unix seconds (from the video channel's status packets:
+  // the control channel sends no position)
   updateCursor(posSec)
 })
 
@@ -81,6 +81,20 @@ player.on('bar', ([type, seq, charStr]) => {
 await player.start(barName, startSec, endSec, barSize, currentSec, { autoOpenVideo: true })
 ```
 
+### Cameras whose records the user may not play
+
+`GET /cameras` gives `playRecordsAllowed: false` for a camera whose records the logged-in user may not play: do not offer playback for it. The server closes the record control channel at once for such a camera, without a message, and `start()` rejects with `err.code === 'PLAYER_CLOSED'` (`err.closeCode`: the WebSocket close code, usually 1006). `start()` also rejects when the channel cannot be opened (no `err.code`) and with `'PLAYER_TIMEOUT'` when the server gave no player within 15 s. A refused credential closes the channel the same way, so the rejection does not prove a missing right: show a generic message.
+
+```js
+if (cam.playRecordsAllowed === false) return   // no playback for this user
+
+try {
+  await player.start(barName, startSec, endSec, barSize, currentSec, { autoOpenVideo: true })
+} catch (err) {
+  showError('Playback is unavailable for this camera')   // err.code: 'PLAYER_CLOSED', 'PLAYER_TIMEOUT' or none
+}
+```
+
 ### Playback commands
 
 ```js
@@ -89,8 +103,9 @@ await player.backward()      // play backward
 player.stop()                // stop; the control channel stays open for resume
 await player.stepForward()   // next frame  (only while stopped)
 await player.stepBackward()  // previous frame (only while stopped)
-player.seek(pos)             // jump to a bar unit (0..barSize)
-player.setTime(ts)           // jump to a timestamp
+player.seek(pos)             // jump to a bar unit (0..barSize-1)
+player.setTime(ts)           // jump to a Unix time in ms (timems, or time in seconds on older servers)
+player.setTime(ts, 'start')  // the keyframe of that instant's GOP alone, on servers that list keyseek (a dragged cursor)
 player.setSpeed(freq)        // playback rate in fps — see "Speed control"
 player.close()               // release both WebSocket connections
 ```
@@ -165,8 +180,9 @@ const decoder = new WebDecoder()
 const canvas  = document.getElementById('video')
 const ctx     = canvas.getContext('2d')
 
-// Step 1 — open control channel, send CTL, wait for player ID
-await services.openControlRecordService(cm, cam.id, async (ctrlService, playerId) => {
+// Step 1 — open control channel, send CTL, wait for player ID. Resolves with the control service once
+// the callback got the ID; rejects like PlaybackPlayer.start() when the server gives no player.
+const ctrlService = await services.openControlRecordService(cm, cam.id, async (ctrlService, playerId) => {
 
   // Step 2 — register the load listener BEFORE opening the video channel,
   // so an early fire is not missed
@@ -197,7 +213,6 @@ await services.openControlRecordService(cm, cam.id, async (ctrlService, playerId
 
   // Step 5 — timeline events
   ctrlService.cmDecoder.on('bar', ([type, seq, charStr]) => console.log('bar:', type))
-  ctrlService.cmDecoder.on('time', t => console.log('position:', t))
 
   // Step 6 — playback commands
   ctrlService.cmDecoder.playForward()
@@ -224,7 +239,7 @@ Note the mixed units: window bounds in seconds, playhead in milliseconds. `Playb
 | Event | Source | Payload |
 |-------|--------|---------|
 | `ready` | PlaybackPlayer | — (init sent, timeline events will follow) |
-| `time` | Record.Control + video status packets | position in Unix seconds (scalar) |
+| `time` | video status packets (current servers send no `time` on the control channel) | position in Unix seconds (scalar) |
 | `bar` | Record.Control | `[type, seq, charStr]` — timeline data per type |
 | `load` | Record.Control | readiness signal / timeline availability |
 | `rfreq` | Record.Control | real recording frame rate (fps) |

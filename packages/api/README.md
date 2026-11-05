@@ -59,7 +59,8 @@ try {
 
 | `err.code` | Raised by | Meaning |
 |---|---|---|
-| `NETWORK` | discovery, auth | DNS failure, connection refused, TLS error, offline (`err.cause` = fetch/axios error) |
+| `NETWORK` | discovery, auth | DNS failure, connection refused, TLS error, offline (`err.cause` = fetch/axios error). In a browser, also a refused certificate (a self-signed one): browsers do not tell why a request failed |
+| `CERTIFICATE` | discovery, auth | Node only: the server's certificate was refused — self-signed, unknown authority, expired, or not issued for this host or IP; `err.message` carries the TLS code (e.g. `DEPTH_ZERO_SELF_SIGNED_CERT`) |
 | `TIMEOUT` | discovery, auth | No answer within the timeout, or the platform gave up on the connection after 10 s or more |
 | `BAD_RESPONSE` | discovery | `GET /api/` did not return the expected JSON (wrong port, proxy, captive portal) |
 | `HTTP_ERROR` | discovery | Non-2xx status on `GET /api/` (`err.httpStatus`) |
@@ -70,6 +71,11 @@ try {
 | `AUTH_UNAVAILABLE` | auth | HTTP 503 (server 17.1): the password was not checked — the user's directory could not be reached, or the server's authentication service did not answer in time or failed. A later attempt may succeed |
 | `AUTH_HTTP` | auth | Other HTTP status during authentication (`err.httpStatus`) |
 | `AUTH_CONFIG` | auth | No password given, the user has no WSSE salt on the server, the hash could not be computed, or `authenticate()` found no method it can use (`err.authMethods`, e.g. `['basic']` over HTTP) |
+
+Every error of `loadApis()` carries the discovery URL in `err.url` (e.g. `https://192.168.1.100:443/api/`):
+in a browser, the page to open to accept a self-signed certificate (a fresh CT-Server 17.1 uses one), after
+which `loadApis()` can be called again without reloading. See
+[Troubleshooting → Self-signed certificate](../../docs/troubleshooting.md#self-signed-certificate-ct-server-171).
 
 `authenticate()` also sets `err.basicWebSocket = false` when the server accepted HTTP Basic on
 the API but does not take it on WebSockets (a server older than API revision 1.2-48, or HTTPS

@@ -5,7 +5,9 @@ Display a live H.264 stream from a CamTrace server in a plain HTML page, with no
 ## Prerequisites
 
 - A bundler that supports `new URL(…, import.meta.url)` and Web Workers: **webpack 5** or **Vite**
-- A CamTrace server v1.2+
+- A CamTrace server v1.2+. From 17.1 it only answers over HTTPS (port 443), and a fresh install uses a self-signed
+  certificate that the browser refuses until it is accepted: see
+  [Troubleshooting → Self-signed certificate](troubleshooting.md#self-signed-certificate-ct-server-171)
 - Your server must serve the page with these headers for the WASM decoder (SharedArrayBuffer requirement):
 
 ```

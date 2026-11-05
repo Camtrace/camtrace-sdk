@@ -46,11 +46,14 @@ ctrl.on('id', async ([playerId]) => {
   vid.on('packet', pck => { /* render */ })
 
   // Initialize and start
-  ctrl.init('bar', cameraId, startTime, endTime, barSize, currentTime)
+  ctrl.init('regul', cameraId, startTime, endTime, barSize, currentTime)
   ctrl.playForward()
 })
 
-ctrl.on('time', ([pos]) => console.log('position:', pos))
+// Position: the video channel's status packets ("image 0 <unixMs> …"), the control channel sends none
+vid.on('packet', pck => {
+  if (pck.name === 'status' && String(pck.data).startsWith('image')) console.log('position (ms):', parseInt(String(pck.data).split(' ')[2]))
+})
 ```
 
 ## Exports
@@ -108,9 +111,14 @@ ctrl.ptzZoom(cameraId, level)
 ctrl.createPlayer()                        // → emits 'id' with playerId
 ctrl.init(barName, cameraId, start, end, barSize, current)
 ctrl.playForward()   ctrl.playBackward()   ctrl.stop()
-ctrl.goto(position)  ctrl.time(timestamp) ctrl.step(n)
-ctrl.freq(frequency)
+ctrl.goto(position)  ctrl.step(n)         ctrl.freq(frequency)
+ctrl.seekTime(unixMs)                      // timems <ms> when the server lists it, time <sec> otherwise
+ctrl.seekTime(unixMs, 'start')             // + key: the keyframe of the GOP alone ('nearest': the nearest), if keyseek is listed
+ctrl.time(unixSec)   ctrl.timems(unixMs)
+ctrl.capabilities                          // words of the server's `capabilities` line (e.g. 'timems', 'keyseek')
 ```
+
+Record control commands go out at once, one WebSocket message each, without a trailing `\0`.
 
 ## Events
 

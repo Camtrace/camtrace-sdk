@@ -6,6 +6,8 @@
 //   err.message     human-readable English text (unchanged contract for err.message users)
 //   err.httpStatus  HTTP status for HTTP_ERROR / AUTH_HTTP / AUTH_FAILED / AUTH_LOCKED / AUTH_UNAVAILABLE
 //   err.cause       the original error (fetch TypeError, AbortError, axios error…)
+//   err.url         loadApis(): the discovery URL (https://host:port/api/), the page a user opens
+//                   to accept a self-signed certificate in a browser
 //   err.authMethods AUTH_CONFIG / AUTH_FAILED (and every authenticate() refusal): the method
 //                   types the server offers for the user, in its order (e.g. ['basic', 'wsse']),
 //                   when they could be read
@@ -17,8 +19,9 @@
 // The other endpoints (cameras(), license(), …) still reject with the raw axios error.
 
 export const ApiErrorCodes = Object.freeze({
-    NETWORK:             'NETWORK',              // DNS, connection refused, TLS, offline…
-    TIMEOUT:             'TIMEOUT',              // no answer within the timeout
+    NETWORK:             'NETWORK',              // DNS, connection refused, TLS, offline… (in a browser, also a refused certificate: browsers do not tell why)
+    CERTIFICATE:         'CERTIFICATE',          // Node only: server certificate refused (self-signed, unknown CA, expired, not issued for this host)
+    TIMEOUT:            'TIMEOUT',              // no answer within the timeout
     BAD_RESPONSE:        'BAD_RESPONSE',         // not JSON / unexpected JSON (wrong port, proxy, captive portal)
     HTTP_ERROR:          'HTTP_ERROR',           // non-2xx status on discovery (httpStatus)
     VERSION_TOO_OLD:     'VERSION_TOO_OLD',      // server API v1 / v1.1
@@ -37,6 +40,7 @@ export class ApiError extends Error {
         this.code = code
         this.httpStatus = options.httpStatus
         this.cause = options.cause
+        if (options.url) this.url = options.url
         if (options.authMethods) this.authMethods = options.authMethods
     }
 
@@ -57,16 +61,39 @@ function describe(error) {
 // seconds before our abort timer, with a generic "Failed to fetch".
 export const SLOW_NETWORK_FAILURE_MS = 10000
 
+// Node's TLS verification codes of a refused server certificate (undici puts the TLS error in
+// error.cause, node-fetch and axios on the error itself). Browsers give no cause: there a refused
+// certificate stays NETWORK.
+const CERTIFICATE_ERROR_CODES = new Set([
+    'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'UNABLE_TO_GET_ISSUER_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'CERT_UNTRUSTED', 'CERT_REJECTED',
+    'CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_REVOKED', 'CERT_SIGNATURE_FAILURE', 'INVALID_CA',
+    'INVALID_PURPOSE', 'CERT_CHAIN_TOO_LONG', 'PATH_LENGTH_EXCEEDED', 'HOSTNAME_MISMATCH',
+    'ERR_TLS_CERT_ALTNAME_INVALID'
+])
+
+// The error carrying a certificate refusal code, on the error or in its causes; undefined otherwise
+export function certificateError(error) {
+    for (let current = error, depth = 0; current && depth < 4; current = current.cause, depth++) {
+        if (typeof current.code === 'string' && CERTIFICATE_ERROR_CODES.has(current.code)) return current
+    }
+    return undefined
+}
+
 // fetch() rejection during discovery → ApiError (elapsedMs: time since the request started)
 export function fromFetchError(error, url, timeout, elapsedMs = 0) {
     if (error instanceof ApiError) return error
     if (error && error.name === 'AbortError') {
-        return new ApiError(ApiErrorCodes.TIMEOUT, 'Connection to ' + url + ' timed out after ' + timeout + ' ms', { cause: error })
+        return new ApiError(ApiErrorCodes.TIMEOUT, 'Connection to ' + url + ' timed out after ' + timeout + ' ms', { cause: error, url })
+    }
+    const refused = certificateError(error)
+    if (refused) {
+        return new ApiError(ApiErrorCodes.CERTIFICATE, 'Certificate of ' + url + ' refused (' + refused.code + '): ' + describe(refused), { cause: error, url })
     }
     if (elapsedMs >= SLOW_NETWORK_FAILURE_MS) {
-        return new ApiError(ApiErrorCodes.TIMEOUT, 'Connection to ' + url + ' failed after ' + Math.round(elapsedMs) + ' ms (network timeout): ' + describe(error), { cause: error })
+        return new ApiError(ApiErrorCodes.TIMEOUT, 'Connection to ' + url + ' failed after ' + Math.round(elapsedMs) + ' ms (network timeout): ' + describe(error), { cause: error, url })
     }
-    return new ApiError(ApiErrorCodes.NETWORK, 'Cannot reach ' + url + ': ' + describe(error), { cause: error })
+    return new ApiError(ApiErrorCodes.NETWORK, 'Cannot reach ' + url + ': ' + describe(error), { cause: error, url })
 }
 
 // axios rejection during authentication → ApiError
@@ -96,6 +123,10 @@ export function fromAxiosError(error, options = {}) {
     }
     if (error && error.code === 'ECONNABORTED') {
         return new ApiError(ApiErrorCodes.TIMEOUT, 'Request timed out' + (url ? ' on ' + url : '') + ': ' + describe(error), { cause: error })
+    }
+    const refused = certificateError(error)
+    if (refused) {
+        return new ApiError(ApiErrorCodes.CERTIFICATE, 'Certificate of the server' + (url ? ' (' + url + ')' : '') + ' refused (' + refused.code + '): ' + describe(refused), { cause: error })
     }
     return new ApiError(ApiErrorCodes.NETWORK, 'Cannot reach server' + (url ? ' (' + url + ')' : '') + ': ' + describe(error), { cause: error })
 }

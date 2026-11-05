@@ -161,7 +161,7 @@ tours-updated <cameraId> [args]
 activetour-updated <cameraId> [args]
 ```
 
-> Commands are rate-limited to 150ms apart internally by `CMDecoder`.
+> `CMDecoder.Control` sends these commands 150 ms apart.
 
 ### Live video stream (binary)
 
@@ -215,28 +215,35 @@ activetour-updated <cameraId> [args]
 
 **Base46:** CamTrace uses a custom base64-like encoding for SPS/PPS. `@camtrace/decoder` decodes it transparently — `pck.data` always contains ready-to-use NAL units.
 
-### Record playback control (text, null-byte-delimited)
+### Record playback control (text)
 
-**URL:** `cm.buildReplayCameraControlUrl(cameraId)` → `wss://…/record/control?id=<cameraId>&…`
+**URL:** `cm.buildReplayCameraControlUrl(cameraId)` → `wss://…/player/control?id=<cameraId>&…`
+
+On open the server sends one line, `capabilities <words…>` (`capabilities autojump automove timems`, and `keyseek` from server 17.1). Send **one command per WebSocket message, without a trailing `\0`**: the server ends each of its own messages with a `\0` and stops reading at an empty command, so a command that arrives in the same read as the previous one is lost when the client adds its own `\0`. `CMDecoder.Record.Control` sends this way; the server control channel (`CMDecoder.Control`) keeps its queue.
 
 **Initialization sequence** (order matters):
 ```
-Client → CTL\0                          # create player
-Server → id <playerId>\0                # player ID — the video channel URL is now known
+Server → capabilities autojump automove timems keyseek
+Client → CTL                            # create player
+Server → id <playerId>                  # player ID — the video channel URL is now known
 (Client → open video channel)           # optional here, required before any play command
-Server → load <data>\0                  # readiness signal — wait for it before sending init
-Client → init <barName> <cameraId> <startSec> <endSec> <barSize> <currentMs>\0
-Server → init <data>\0                  # init acknowledgement
-Server → bar <type> <seq> <charStr>\0   # burst: timeline bars for ALL types (regul, alarm, …)
-Server → [video channel] non-timestamped preview frames
+Server → load <data>                    # readiness signal — wait for it before sending init
+Client → init <barName> <cameraId> <startSec> <endSec> <barSize> <currentMs>
+Server → span <startSec> <endSec>       # the window of the bars that follow
+Server → bar <type> <seq> <charStr>     # burst: timeline bars for ALL types (regul, alarm, …)
+Server → init <data>                    # init acknowledgement
+Server → rfreq 1000
+Server → [video channel] the frames up to currentMs, then the image at currentMs
 ```
 
 Notes:
 - Do **not** send `type` during initialization — `barName` is already the first argument of `init`. `type` would trigger a second decoder initialization on the video channel.
 - Wait for the `load` event before sending `init` (with a ~2 s fallback timeout for servers that don't send it).
 - After the preview burst the server may **close the video channel**. Reopen it with the same `playerId` before the next play command.
+- `init` can be sent again on the same player to move or resize the window (no need to reopen the channels): the server answers with the same burst and seeks to `currentMs`; playback goes on.
+- The window bounds playback: a seek before its start fails, and by default (`automove off`) playback pauses at its edge. Send a new `init` before the position leaves it.
 
-**Units:** `startSec`/`endSec` are Unix seconds; `currentMs` is Unix **milliseconds**; `goto` positions are bar units (`0..barSize`).
+**Units:** `startSec`/`endSec` are Unix seconds; `currentMs` is Unix **milliseconds**; `goto` positions are bar units (`0..barSize-1`).
 
 **Commands:**
 ```
@@ -247,25 +254,32 @@ play forw                                # play forward
 play back                                # play backward
 play next / play prev                    # step one frame (video channel open, playback stopped)
 play stop                                # stop
-goto <position>                          # seek to bar unit (0..barSize)
-time <timestamp>                         # seek to Unix timestamp
-step <n>                                 # frames per tick during playback (not a navigation command)
-freq <f>                                 # playback rate in fps (UI speed × rfreq)
+goto <position> [key [start|nearest]]    # seek to bar unit (0..barSize-1)
+time <unixSec> [key [start|nearest]]     # seek to a Unix time in seconds (a value in ms is rejected)
+timems <unixMs> [key [start|nearest]]    # seek to a Unix time in milliseconds (when listed in capabilities)
+step <n>                                 # play one key frame out of n (see below) — not a navigation command
+freq <f>                                 # playback speed × 1000 (rfreq is always 1000: 1000 = 1×)
+autojump on|off / automove on|off        # automove: the window moves by its length at its edge (default off: pause)
 sync [0|1]                               # enable/disable sync
 ```
 
+**Every positioning command is an exact seek** (`goto`, `time`, `timems`, `type`, `init`): the server goes back to the previous key frame and sends the frames up to the target with a zero timestamp (needed to decode it), then the target frame. A player that displays only timestamped frames shows the target image alone; displayed, the zero-timestamp frames replay up to a GOP in a fast burst at every seek (`@camtrace/web-video-decoder` currently renders every decoded frame). With `step <n>` (n ≥ 2), forward playback jumps n key frames at a time and waits for the time they cover at the current speed: one image every n GOPs.
+
+**Keyframe seeks** (servers that list `keyseek` in their capabilities): `goto`, `time` and `timems` followed by `key` (or `key start`) send one picture, the key frame opening the group of pictures the position falls in; followed by `key nearest`, the key frame nearest to the position (the one before it at equal distance). No zero-timestamp frames: a fraction of the exact seek's time and bytes, for a cursor being dragged (send an exact seek where it is released). The key frame stays within the window and the account's playback window: when the one before the position is outside them (or across a gap in the recording), the one after it is sent, and with neither inside them the seek is exact. The player then stands on that key frame. The answer is that of an exact seek: `play stop <ms>`, `flush`, the frame, then its `image` status, at the key frame's time. An older server ignores the `key` form and sends no image: send it only where `keyseek` is listed.
+
+**Seeks read back to back** (servers that list `keyseek`): of the seeks (`goto`, `time`, `timems`) the server reads in one go, only the last one runs. Two seeks sent in a row may thus get a single answer. Any other command between them keeps both (an unchanged `step <n>` does nothing else).
+
 **Events:**
 ```
+capabilities <words…>            # once, when the channel opens
 id <playerId>                    # player ID for the video channel URL
 load <data>                      # readiness signal (see initialization sequence)
-init <data>                      # init acknowledgement
+span <startSec> <endSec>         # window of the bars that follow (every init)
 bar <type> <seq> <charStr>       # timeline data — payload [type, seq, charStr]
-time <unixSec>                   # current playback position (control channel)
-play <forw|back|stop|next|prev>  # playback state confirmations
-step <data>
-span <data>
-rfreq <freq>                     # real fps of the recording
+init <data>                      # init acknowledgement
+rfreq <freq>                     # always 1000 on current servers
 ```
+Current servers send no `time`, `step` or `play` line on this channel (`CMDecoder.Record.Control` would emit them): the playback position and state come from the `status` packets of the video channel.
 
 **`bar` event encoding** — one character per bar position (`charStr.length === barSize`):
 
@@ -285,10 +299,10 @@ Bars for **all** types arrive in the burst following `init` — cache them per t
 
 ### Record video stream (binary)
 
-**URL:** `cm.buildReplayCameraVideoUrl(playerId, accept?)` → `wss://…/record/video?id=<playerId>&…`
+**URL:** `cm.buildReplayCameraVideoUrl(playerId, accept?)` → `wss://…/player/video?id=<playerId>&…`
 
 Uses the same binary protocol as the live stream (identical packet types and framing).
 
-**Status packets — primary position source:** packets with `name: 'status'` carry the text `"image <flags> <unixMs>"`. `parseInt(parts[2]) / 1000` gives the current position in Unix **seconds**. Prefer this feed for driving a timeline cursor — the control channel `time` events are sent less systematically.
+**Status packets — the position source:** packets with `name: 'status'` carry the text `"image 0 <unixMs> <bytes> 0 0"` for each displayed frame. `parseInt(parts[2])` is its position in Unix **milliseconds**. Other statuses: `play forw|back|stop <unixMs>` (playback state), `flush`, and `nodata` in a gap. At the end of what is recorded (shortly before now) the server sends nothing more. The control channel sends no position.
 
 **Preview frames:** right after `init`, the server pushes a burst of non-timestamped frames on the video channel as an automatic preview, then may close the channel (reopen it with the same `playerId` to play).

@@ -4,7 +4,7 @@ Detailed API reference for each package.
 
 ## @camtrace/api
 
-**Package:** `@camtrace/api` v2.1.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
+**Package:** `@camtrace/api` v2.2.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
 
 ### Entry point
 
@@ -22,8 +22,9 @@ const cm = await CamtraceApi.loadApis(host, port, ssl, appVersion?, { timeout? }
 ### Errors
 
 `loadApis()`, `authenticate()`, `simpleLogin()`, `login()`, `basicLogin()` and `getCryptPass()`
-reject with an `ApiError` (`err.code`, `err.message`, `err.httpStatus`, `err.cause`; on
-authentication refusals `err.authMethod`, `err.authMethods`, `err.basicWebSocket`). Codes: `NETWORK`, `TIMEOUT`,
+reject with an `ApiError` (`err.code`, `err.message`, `err.httpStatus`, `err.cause`; on `loadApis()` errors
+`err.url`, the discovery URL; on authentication refusals `err.authMethod`, `err.authMethods`, `err.basicWebSocket`).
+Codes: `NETWORK`, `CERTIFICATE` (Node only: certificate refused; in a browser it is `NETWORK`), `TIMEOUT`,
 `BAD_RESPONSE`, `HTTP_ERROR`, `VERSION_TOO_OLD`, `VERSION_UNSUPPORTED`, `AUTH_FAILED`,
 `AUTH_LOCKED`, `AUTH_UNAVAILABLE`, `AUTH_HTTP`, `AUTH_CONFIG` — see `packages/api/README.md` and `troubleshooting.md`.
 The other endpoints reject with the raw axios error.
@@ -77,7 +78,7 @@ The other endpoints reject with the raw axios error.
 
 ## @camtrace/decoder
 
-**Package:** `@camtrace/decoder` v2.1.0 | **Build:** `packages/decoder/build/build.js` (UMD, also Node.js)
+**Package:** `@camtrace/decoder` v2.2.0 | **Build:** `packages/decoder/build/build.js` (UMD, also Node.js)
 
 ### Exports
 
@@ -116,7 +117,7 @@ Both extend `CMDecoder` (EventEmitter). Feed raw `ArrayBuffer` data via `write(b
 
 ### Text decoders (Control / Record.Control)
 
-Feed via `write(buffer: Buffer)`. Send commands via the dedicated methods — commands are rate-limited to 150ms apart.
+Feed via `write(buffer: Buffer)`. Send commands via the dedicated methods. `Control` sends them 150 ms apart; `Record.Control` sends each one at once, as one WebSocket message without a trailing `\0` (the server ends each message with its own, and a second `\0` made it drop a command read together with the previous one).
 
 **`CMDecoder.Control` — server control channel:**
 
@@ -145,12 +146,16 @@ Events: `'login'`, `'event'` (status/presets/tours updates)
 | `playBackward()` | `play back` |
 | `playNext()` / `playPrev()` | `play next` / `play prev` |
 | `stop()` | `play stop` |
-| `goto(pos)` | `goto <pos>` |
-| `time(ts)` | `time <ts>` |
+| `goto(pos, key?)` | `goto <pos>` |
+| `time(sec, key?)` | `time <sec>` — Unix seconds |
+| `timems(ms, key?)` | `timems <ms>` — Unix milliseconds, on servers that list `timems` in their capabilities |
+| `seekTime(ms, key?)` | `timems <ms>` when the server lists it, `time <sec>` otherwise |
+
+`key` (`'start'` or `'nearest'`) appends `key` or `key nearest`: the server sends the keyframe opening the position's group of pictures, or the nearest keyframe, alone instead of the exact image. Only servers that list `keyseek` in their capabilities accept it (an older one ignores the command and sends no image): `seekTime` drops it on the others, `goto`, `time` and `timems` send it as given.
 | `step(n)` | `step <n>` |
 | `freq(f)` | `freq <f>` |
 
-Events: `'id'` `([playerId])`, `'load'` `([data])`, `'time'` `([position])`
+Events: `'id'` `([playerId])`, `'load'` `([data])`, `'time'` `([position])` (not sent by current servers: the position comes from the video channel's `status` packets), `'capabilities'` (the words of the server's `capabilities` line, sent when the channel opens — `timems`, `keyseek`… —; also kept in `ctrl.capabilities`)
 
 ---
 
@@ -181,7 +186,7 @@ const decoder = new WebDecoder()
 
 ## @camtrace/streaming
 
-**Package:** `@camtrace/streaming` v1.3.0 | **Entry:** `packages/streaming/src/index.js`
+**Package:** `@camtrace/streaming` v1.4.0 | **Entry:** `packages/streaming/src/index.js`
 
 ### Exports
 
@@ -207,12 +212,21 @@ All return a `SimpleService` instance with a bound CMDecoder.
 | `openLiveService(cm, streamUrl, protocol, type?, compr?)` | `CMDecoder.Live` | yes | no |
 | `openGroupLiveService(cm, ids[], protocol, compr?, w?, h?)` | `CMDecoder.Live` | yes | no |
 | `openControlService(cm)` | `CMDecoder.Control` | no | no |
+| `openControlRecordService(cm, cameraId, playerIdCb)` | `CMDecoder.Record.Control` | no | yes |
+| `openVideoRecordService(cm, playerId, protocol)` | `CMDecoder.Record.Video` | yes | yes |
 
 `openControlService` never rejects: if the control channel cannot be opened the service is
 returned unconnected (`service.ws.isOpened === false`) and the failure is reported through
 `setLogHandler`.
-| `openControlRecordService(cm, cameraId, playerIdCb)` | `CMDecoder.Record.Control` | no | yes |
-| `openVideoRecordService(cm, playerId, protocol)` | `CMDecoder.Record.Video` | yes | yes |
+
+`openControlRecordService` resolves once the server gave a player, after `playerIdCb(service, playerId)`
+was called. It rejects when the channel cannot be opened, when the server closes it before the player
+id (`err.code === 'PLAYER_CLOSED'`, `err.closeCode`) and when no id came within 15 s
+(`'PLAYER_TIMEOUT'`). The server closes the channel at once for a camera whose
+records the user may not play (`playRecordsAllowed: false` in `GET /cameras`), and also for a refused
+credential. Whenever it rejects, the service is closed for good, Cordova `pause` / `resume` listeners
+included: an opening cut short by the app going to the background is not reopened on return.
+`openVideoRecordService` does the same when its channel cannot be opened.
 
 ### `connectToServer(server, options?)`
 
@@ -228,10 +242,10 @@ const { cmInterface, cmUser, cmCtrl, cmCameras } = await connectToServer({
 
 | Method | Description |
 |--------|-------------|
-| `connect()` | Open WebSocket, start keepAlive if enabled |
-| `pause()` | Mute close event, close WebSocket |
+| `connect()` | Open WebSocket, start keepAlive if enabled; sets the Cordova pause/resume listeners again after a close |
+| `pause()` | Mute close event, stop keepAlive, close WebSocket |
 | `resume()` | Reopen WebSocket |
-| `close()` | Close (fires `'close'` event) |
+| `close()` | Close (fires `'close'` event); the service no longer reopens on resume |
 | `forceSilentClose()` | Close silently, no event, cancel keepAlive |
 | `setLifecycleHooks({onPause, onResume})` | Override default Cordova lifecycle handlers |
 | `getStreamId()` | Extract stream ID from WebSocket URL |
@@ -261,13 +275,13 @@ new PlaybackPlayer(cm, cameraId, { DecoderClass?, streamType? })
 | Method / Event | Description |
 |----------------|-------------|
 | `.attach(canvas)` → `this` | Set rendering canvas |
-| `.start(bar, startTime, endTime, barSize, currentTime)` → `Promise<this>` | Open both channels, init player |
+| `.start(bar, startTime, endTime, barSize, currentTime)` → `Promise<this>` | Open both channels, init player; rejects like `openControlRecordService` when the server gives no player |
 | `.play()` / `.backward()` / `.stop()` | Playback direction |
 | `.seek(pos)` / `.setTime(ts)` | Seek |
 | `.step(n)` / `.setSpeed(freq)` | Frame step / speed |
 | `.close()` | Release both WebSocket connections |
 | `'ready'` | Video channel open, playback commands accepted |
-| `'time'` `([pos])` | Current position |
+| `'time'` `(pos)` | Current position, Unix seconds (from the video channel's `status` packets) |
 | `'load'` `([data])` | Timeline availability data |
 | `'frame'` / `'packet'` / `'close'` | Same as LivePlayer |
 

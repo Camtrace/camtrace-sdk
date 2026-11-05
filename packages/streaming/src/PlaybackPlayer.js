@@ -115,6 +115,9 @@ export default class PlaybackPlayer extends EventEmitter {
     // Opens the control channel, sends init + type, emits 'ready'.
     // With { autoOpenVideo: true }, opens the video channel before init so the server
     // sends its initial non-timestamped preview frames (same behaviour as the mobile app).
+    // Resolves once the server gave a player; rejects when it gave none — records the user may
+    // not play (camera.playRecordsAllowed === false), refused token, no answer: err.code
+    // 'PLAYER_CLOSED' or 'PLAYER_TIMEOUT' (see services.openControlRecordService).
     async start(barName, startTime, endTime, barSize, currentTime, { autoOpenVideo = false } = {}) {
         this._initDecoder()
 
@@ -171,10 +174,11 @@ export default class PlaybackPlayer extends EventEmitter {
         this.ctrlService?.cmDecoder.playBackward()
     }
 
-    stop()         { this.ctrlService?.cmDecoder.stop() }
-    seek(pos)      { this.ctrlService?.cmDecoder.goto(pos) }
-    setTime(ts)    { this.ctrlService?.cmDecoder.time(ts) }
-    setSpeed(freq) { this.ctrlService?.cmDecoder.freq(freq) }
+    stop()            { this.ctrlService?.cmDecoder.stop() }
+    // `key` ('start' or 'nearest'): the keyframe alone, on servers that list keyseek (an exact seek elsewhere)
+    seek(pos, key)    { const c = this.ctrlService?.cmDecoder; c?.goto(pos, c.capabilities.includes('keyseek') ? key : undefined) }
+    setTime(ts, key)  { this.ctrlService?.cmDecoder.seekTime(ts, key) }
+    setSpeed(freq)    { this.ctrlService?.cmDecoder.freq(freq) }
 
     async stepForward() {
         await this._ensureVideo()

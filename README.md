@@ -34,6 +34,10 @@ npm run demo       # starts the demo dev server
 # Enter your CamTrace server address and credentials, then select a camera.
 ```
 
+A CT-Server 17.1 or later only answers over HTTPS, and a fresh one uses a self-signed certificate: the browser refuses it
+until you accept it. The demo's login page shows the link to open for that and connects once it is accepted — see
+[`docs/troubleshooting.md`](docs/troubleshooting.md#self-signed-certificate-ct-server-171) (browsers, a lasting setup, Node).
+
 ## Documentation
 
 - [`docs/quickstart-vanilla.md`](docs/quickstart-vanilla.md) — step-by-step integration guide (vanilla JS)

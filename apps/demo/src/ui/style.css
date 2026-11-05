@@ -164,6 +164,23 @@ body {
 /* ── Error / status messages ─────────────────────────────────────────────── */
 
 .error-msg { color: var(--error); font-size: 0.85rem; margin-top: 10px; text-align: center; }
+.hint-msg  { color: var(--text); font-size: 0.85rem; margin-top: 8px; text-align: center; }
+
+/* Self-signed certificate: accept it in another tab while the demo tries again */
+.cert-help {
+    margin-top:    14px;
+    padding:       12px 14px;
+    border:        1px solid var(--border);
+    border-radius: var(--radius);
+    background:    var(--bg);
+    font-size:     0.85rem;
+    line-height:   1.45;
+}
+.cert-help p   { margin: 0 0 8px; }
+.cert-help ol  { margin: 0 0 10px; padding-left: 20px; }
+.cert-help li  { margin-bottom: 6px; }
+.cert-help a   { color: var(--accent); word-break: break-all; }
+.cert-status   { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 10px; word-break: break-word; }
 .status    { color: var(--text-dim); font-size: 0.85rem; text-align: center; margin-top: 8px; }
 
 /* ── Camera grid ─────────────────────────────────────────────────────────── */

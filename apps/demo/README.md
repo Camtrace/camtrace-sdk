@@ -21,9 +21,14 @@ cd apps/demo && npm run dev
 
 Enter your CamTrace server credentials in the login form. The app will list your cameras and let you watch live streams and recorded video.
 
+The form connects over HTTPS on port 443 by default: a CT-Server 17.1 or later only answers over HTTPS. A fresh one uses a
+self-signed certificate, which the browser refuses — and reports as a network error. The login page then shows the server's
+discovery URL: open it in a new tab, accept the browser's warning, come back, and the demo connects on its own (it tries again
+every 2 s). See [Troubleshooting → Self-signed certificate](../../docs/troubleshooting.md#self-signed-certificate-ct-server-171).
+
 ## What it demonstrates
 
-- **Login** — server discovery, authentication (WSSE, or HTTP Basic when the server requires it), camera list
+- **Login** — server discovery, authentication (WSSE, or HTTP Basic when the server requires it), camera list; acceptance of a self-signed certificate in the browser
 - **Live stream** — H.264 decoding via WebAssembly (FFmpeg), HD/MD/LD quality selection
 - **Record playback** — dual-WebSocket control+video sequence, play/pause/backward/seek/step/speed controls
 

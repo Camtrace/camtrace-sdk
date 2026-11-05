@@ -17,7 +17,8 @@ const CamtraceApi = {
     DISCOVER_TIMEOUT_MS,
 
     // options.timeout (ms): discovery timeout and default request timeout of the CMInterface.
-    // Rejects with an ApiError (see errors.js) — never with a plain string or a raw fetch error.
+    // Rejects with an ApiError (see errors.js) — never with a plain string or a raw fetch error —
+    // whose err.url is the discovery URL.
     async loadApis(host, port, ssl, mobile = "on", options = {}) {
         const timeout = (typeof options.timeout === 'number') ? options.timeout : DISCOVER_TIMEOUT_MS
         const baseUrl = "http" + ((ssl) ? ("s") : ("")) + "://" + host + ((port) ? (":" + port) : (""))
@@ -41,14 +42,14 @@ const CamtraceApi = {
             if (!apiResponse.ok) {
                 throw new ApiError(ApiErrorCodes.HTTP_ERROR,
                     'HTTP ' + apiResponse.status + (apiResponse.statusText ? ' ' + apiResponse.statusText : '') + ' on ' + url,
-                    { httpStatus: apiResponse.status })
+                    { httpStatus: apiResponse.status, url })
             }
             try {
                 apiData = await apiResponse.json()
             } catch (error) {
                 if (error && error.name === 'AbortError') throw fromFetchError(error, url, timeout)
                 throw new ApiError(ApiErrorCodes.BAD_RESPONSE,
-                    'Invalid API discovery response from ' + url + ' (not JSON): is this a CamTrace server?', { cause: error })
+                    'Invalid API discovery response from ' + url + ' (not JSON): is this a CamTrace server?', { cause: error, url })
             }
         } finally {
             if (timer) clearTimeout(timer)
@@ -57,15 +58,15 @@ const CamtraceApi = {
         const latest = apiData && apiData.versions && apiData.versions.latest
         if (typeof latest !== 'string') {
             throw new ApiError(ApiErrorCodes.BAD_RESPONSE,
-                'Invalid API discovery response from ' + url + ' (no versions.latest): is this a CamTrace server?')
+                'Invalid API discovery response from ' + url + ' (no versions.latest): is this a CamTrace server?', { url })
         }
         // Calculate time difference between server time and local time in order to avoid authentication (WSSE) failure
         const timeShift = Utils.dateDiff(apiResponse.headers.get('Date'))
         if (!Versions.isSupported(latest)) {
-            throw new ApiError(ApiErrorCodes.VERSION_UNSUPPORTED, 'Not compatible version (API version error): ' + latest)
+            throw new ApiError(ApiErrorCodes.VERSION_UNSUPPORTED, 'Not compatible version (API version error): ' + latest, { url })
         }
         if (Versions.isTooOldVersion(latest)) {
-            throw new ApiError(ApiErrorCodes.VERSION_TOO_OLD, 'Server API version too old: ' + latest)
+            throw new ApiError(ApiErrorCodes.VERSION_TOO_OLD, 'Server API version too old: ' + latest, { url })
         }
         return new CMInterface(host, port, ssl, latest, mobile, timeShift, timeout)
     }

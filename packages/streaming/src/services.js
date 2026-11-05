@@ -28,6 +28,8 @@ function serviceOptions(cmInterface) {
 const RELOGIN_DELAY_MS = 11000
 // The offset must have moved by more than this for a refused login to be sent again
 const RELOGIN_MIN_SHIFT_MS = 1000
+// The record player id comes a few ms after the open (a loaded server answers seeks within about 3 s)
+const PLAYER_ID_TIMEOUT_MS = 15000
 
 export default {
     async openLiveService(cmInterface, streamUrl, protocol, type = undefined, compr = undefined) {
@@ -96,23 +98,73 @@ export default {
         return service
     },
 
+    // Resolves with the service once the player id has come (playerIdCb called with it). Rejects when the
+    // channel cannot be opened, when it closes before the id — the server closes it at once for a camera
+    // whose records the user may not play (`playRecordsAllowed: false`), also for a refused token —
+    // (err.code 'PLAYER_CLOSED', err.closeCode), and when no id came within PLAYER_ID_TIMEOUT_MS
+    // ('PLAYER_TIMEOUT'). The service is closed for good whenever it rejects: the caller never gets it,
+    // and an opening cut by the Cordova pause would otherwise reopen it at every resume.
     async openControlRecordService(cmInterface, cameraId, playerIdCb) {
         let service = new SimpleService(
             async () => await cmInterface.buildReplayCameraControlUrl(cameraId),
             new CMDecoder.Record.Control(), false, true, serviceOptions(cmInterface)
         )
-        await service.connect()
-        service.cmDecoder.on('id', playerId => playerIdCb(service, playerId))
-        service.cmDecoder.createPlayer()
+        let state = 'pending'
+        let settle
+        const outcome = new Promise((resolve, reject) => { settle = { resolve, reject } })
+        const fail = (err, code) => {
+            if (state !== 'pending') return
+            state = 'failed'
+            if (code) err.code = code
+            log('warn', 'record player unavailable', { camera: cameraId, code: err.code, closeCode: err.closeCode, error: err.message })
+            service.forceSilentClose()
+            settle.reject(err)
+        }
+        // Set before the open: the server closes the channel 1 ms after it, and listeners are read when the
+        // event is dispatched (10 ms after the emit)
+        const onClose = e => {
+            const err = new Error('record control channel closed before the player id')
+            err.closeCode = e && e.code
+            fail(err, 'PLAYER_CLOSED')
+        }
+        service.on('close', onClose)
+        service.cmDecoder.on('id', playerId => {
+            if (state === 'failed') return
+            if (state === 'pending') {
+                state = 'ready'
+                settle.resolve(service)
+            }
+            playerIdCb(service, playerId)
+        })
+        const timer = setTimeout(() => {
+            if (state !== 'pending') return
+            fail(new Error('no record player id within ' + PLAYER_ID_TIMEOUT_MS + ' ms'), 'PLAYER_TIMEOUT')
+        }, PLAYER_ID_TIMEOUT_MS)
+        service.connect().then(
+            () => { if (state === 'pending') service.cmDecoder.createPlayer() },
+            err => fail(err)
+        )
+        try {
+            return await outcome
+        } finally {
+            clearTimeout(timer)
+            service.off('close', onClose)
+        }
     },
 
+    // A failed open closes the service for good (see openControlRecordService)
     async openVideoRecordService(cmInterface, playerId, protocol) {
         let accept = acceptVariant(cmInterface, protocol)
         let service = new SimpleService(
             async () => await cmInterface.buildReplayCameraVideoUrl(playerId, accept),
             new CMDecoder.Record.Video(), true, true, serviceOptions(cmInterface)
         )
-        await service.connect()
+        try {
+            await service.connect()
+        } catch (err) {
+            service.forceSilentClose()
+            throw err
+        }
         return service
     }
 }
