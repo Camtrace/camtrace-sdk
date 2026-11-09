@@ -4,7 +4,7 @@ Detailed API reference for each package.
 
 ## @camtrace/api
 
-**Package:** `@camtrace/api` v2.2.0 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
+**Package:** `@camtrace/api` v2.2.1 | **Build:** `packages/api/build/build.js` (UMD, also works in Node.js)
 
 ### Entry point
 

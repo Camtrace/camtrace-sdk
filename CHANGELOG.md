@@ -4,6 +4,14 @@ Notable changes to the CamTrace Integration SDK — the demo application and the
 `@camtrace/*` packages. Versions are SDK releases; package versions are given when
 they change.
 
+## 1.4.1 — 2026-11-09
+
+### Security
+- `@camtrace/api` 2.2.1 — axios 0.27.2 → 0.35.0, the latest of the maintained 0.x line: fixes the axios advisories reported
+  on 0.27 (SSRF and credential leaks through absolute URLs, redirects and proxies, prototype-pollution gadgets in the
+  config merge, ReDoS, cross-site request forgery). Requests and results are unchanged: JSON answers are parsed, other
+  answers come back as strings, the error codes are the same.
+
 ## 1.4.0 — 2026-11-05
 
 ### Added

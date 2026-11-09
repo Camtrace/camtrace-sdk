@@ -7,7 +7,7 @@ import { ApiError, ApiErrorCodes, fromAxiosError } from 'CMApi/errors'
 
 const ENDPOINTS_BY_VERSIONS = Versions.loadAllEndpointsInAllVersions()
 const API_PREFIX = "/api"
-// Per-request HTTP timeout (ms); axios 0.27 defaults to 0 = unlimited
+// Per-request HTTP timeout (ms); axios defaults to 0 = unlimited
 const REQUEST_TIMEOUT_MS = 15000
 // The server refuses a WSSE token created more than 2 s in its future or more than 10 s in
 // its past. A 401 is retried once when the clock offset read from its Date header (1 s
@@ -64,10 +64,12 @@ class CMInterface {
     }
     buildApis(serverVersion) {
         let apis = {}
+        // No responseType: axios (0.28+) only parses a JSON answer when it is unset or 'json'.
+        // 'text' here left every answer a string (0.27 parsed it anyway); a non-JSON answer
+        // still comes back as a string. The image routes ask for 'blob' themselves.
         let axiosConfig = {
             params: {},
             timeout: this.requestTimeout,
-            responseType: 'text',
             headers: {
                 'Content-Type': 'text/plain'
             },

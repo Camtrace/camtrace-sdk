@@ -1,6 +1,6 @@
 {
     "name": "@camtrace/api",
-    "version": "2.2.0",
+    "version": "2.2.1",
     "private": true,
     "main": "build/build.js",
     "author": "CamTrace SAS",
@@ -16,7 +16,7 @@
         "webpack-node-externals": "^3.0.0"
     },
     "dependencies": {
-        "axios": "^0.27.2",
+        "axios": "^0.35.0",
         "bcryptjs": "^2.4.3",
         "encoding": "^0.1.13",
         "es6-promise": "^4.2.8",
